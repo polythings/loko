@@ -24,7 +24,9 @@ use syn::{
 };
 
 /// Makes a trait a loko resource: adds `Has<Trait>` and implements the trait for every type that
-/// has one. Methods must take `&self`; the trait can't be generic.
+/// has one. Methods must take `&self`, so one value can be several resources and clones can share
+/// state; an implementation whose state changes keeps it behind a lock or an atomic, never held
+/// across `.await`. The trait can't be generic.
 #[proc_macro_attribute]
 pub fn resource(args: TokenStream, input: TokenStream) -> TokenStream {
     if !args.is_empty() {

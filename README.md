@@ -276,7 +276,57 @@ async fn main() -> std::io::Result<()> {
 }
 ```
 
-### 8. Wrappers
+### 8. State in your own resources
+
+Every resource method takes `&self`, never `&mut self`. That's what lets one value be several resources at once
+(`greet(resources, resources)` in step 3), lets clones share state (a test keeps one `TestClock` and advances the one
+the code holds), and lets resources be used across `.await`. A resource whose state changes keeps it behind a lock or
+an atomic, as `TestMailer` above does with its `Mutex`. Three rules keep that safe:
+
+- **Lock only for the synchronous part.** Don't hold a `std::sync::Mutex` guard or a `RefCell` borrow across an
+  `.await`. While the task waits, another task can use the same resource and try to take the lock: a `Mutex` then
+  blocks that thread for good (on a single-threaded runtime or in the browser, the whole program stops), and a
+  `RefCell` panics. Clippy warns about both (`await_holding_lock`, `await_holding_refcell_ref`). If state really must
+  stay locked while waiting, use an async mutex such as `tokio::sync::Mutex`.
+- **Counters are atomics,** which need no lock.
+- **Clones share state.** Cloning a resource that holds an `Arc` gives a second handle to the same state, not a copy.
+
+```rust
+use std::sync::Mutex;
+use std::time::Duration;
+
+use loko::{Clock, TestPlatform};
+
+/// Remembers when each job ran.
+struct Jobs {
+    runs: Mutex<Vec<i64>>,
+}
+
+impl Jobs {
+    async fn run(&self, clock: &impl Clock) {
+        // Wait first, holding nothing; then lock, change, and unlock in one statement.
+        clock.sleep(Duration::from_secs(1)).await;
+        self.runs.lock().unwrap().push(clock.now_ms());
+        // Not this: `let mut runs = self.runs.lock().unwrap(); clock.sleep(…).await; runs.push(…);`
+    }
+}
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let jobs = Jobs { runs: Mutex::new(vec![]) };
+    let platform = TestPlatform::new();
+    jobs.run(&platform).await;
+    jobs.run(&platform).await;
+    assert_eq!(*jobs.runs.lock().unwrap(), [1_000, 2_000]);
+}
+```
+
+A lock taken and released at once costs tens of nanoseconds, which matters only in hot loops. The one that comes up is
+`SeededRandom`, which locks for every number: code that draws millions of numbers seeds a local generator from the
+resource once (`SmallRng::seed_from_u64(resources.next_u64())`) and draws from that. The system implementations
+(`StdClock`, `OsRandom`, `SystemEnv`, `StdConsole`) hold no state and take no lock.
+
+### 9. Wrappers
 
 A wrapper holds one implementation of a resource and is one itself, changing some methods. `#[loko::wraps(field:
 Type)]` on its `impl` forwards every method it doesn't write to the field.
@@ -335,7 +385,7 @@ async fn main() {
 A wrapper keeps the inner resource's associated types, and a provided method it doesn't write (such as `now_ms`)
 forwards to the inner one too, so write it when it depends on a method the wrapper changes.
 
-### 9. In the browser
+### 10. In the browser
 
 With feature `js` on `wasm32-unknown-unknown`, `JsPlatform` uses `Date.now`, `setTimeout`, `crypto.getRandomValues`,
 and the JavaScript console. The `retry` from step 2 runs unchanged:

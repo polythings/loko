@@ -40,6 +40,9 @@ we took.
 
 - **Resources:** a trait marked `#[loko_macros::resource]`, methods on `&self`, async methods returning `impl Future`
   without `Send`. Implementations that hold state share it between clones (`Arc<Mutex<…>>`).
+- **State in resources:** methods take `&self`, so state that changes sits behind a `Mutex` or an atomic (counters).
+  Lock only for the synchronous part of a call: never hold a `std::sync::Mutex` guard or a `RefCell` borrow across
+  `.await` (Clippy's `await_holding_lock` and `await_holding_refcell_ref` catch it). Clones share state.
 - **Errors:** what the platform gives (`io::Result` for the console), or the crate's own `non_exhaustive` error enum
   (`loko_store::Error`). No `unwrap()` outside tests; a poisoned lock is recovered, not a panic.
 - **Layout:** the trait in `lib.rs`, and each implementation in a module named for where it runs: `testing.rs`,

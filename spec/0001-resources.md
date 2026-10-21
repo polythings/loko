@@ -40,6 +40,10 @@ anyone define new resources, bundle them with loko's, and wrap one implementatio
   associated types and constants, and a provided method it doesn't write forwards to the held one, so a wrapper writes
   the provided methods that depend on what it changes (`OffsetClock` writes `now_ms` as well as `now`). Wrappers
   stack: `CountingStore<ReadOnlyStore<S>>`.
+- **`&self` and state:** every method takes `&self`, so one value can be several resources (`f(r, r)`), clones can share
+  state, and resources can be held across `.await`. An implementation whose state changes keeps it behind a lock or an
+  atomic, locked only for the synchronous part of a call; a lock or `RefCell` borrow held across `.await` deadlocks or
+  panics when another task uses the resource meanwhile.
 - **Composition:** an implementation of one resource can hold others (a greeter that holds a clock), and a program's
   bundle can mix loko's resources with its own. Code asks only for what it uses: `&(impl Store + Clock)`.
 - **Crates:** one per resource (`loko-clock`, `loko-random`, `loko-env`, `loko-console`, `loko-store`), each with its

@@ -10,6 +10,11 @@
 //!   provide, and [`wraps`] makes a wrapper that changes some of a resource's methods and forwards
 //!   the rest. [`prelude`] brings in the resources with the `HasClock`-style traits these name.
 //!
+//! Resource methods take `&self`, so one value can be several resources and clones can share state.
+//! A resource whose state changes keeps it behind a lock or an atomic, locked only for the
+//! synchronous part of a call: a `std::sync::Mutex` guard or `RefCell` borrow held across `.await`
+//! deadlocks or panics when another task uses the resource meanwhile.
+//!
 //! ```
 //! use std::time::Duration;
 //!
