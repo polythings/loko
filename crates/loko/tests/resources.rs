@@ -154,3 +154,31 @@ fn store_wrappers_stack() {
     assert_eq!((counted.counts().get, counted.counts().put), (2, 1));
     assert_eq!(memory.uris(), ["memory://wh/a/t"]);
 }
+
+/// A resource with a generic method (whose `T` the generated code mustn't clash with) and a method
+/// compiled out by `#[cfg]` (whose generated items must go with it).
+#[loko::resource]
+trait Log {
+    /// The line logged for `value`.
+    fn line<T: std::fmt::Display>(&self, value: T) -> String;
+
+    /// Never compiled.
+    #[cfg(any())]
+    fn never(&self);
+}
+
+struct Plain;
+
+impl Log for Plain {
+    fn line<T: std::fmt::Display>(&self, value: T) -> String {
+        format!("log: {value}")
+    }
+}
+
+#[derive(Provides)]
+struct Logged(#[provides(Log)] Plain);
+
+#[test]
+fn generic_and_cfg_gated_methods_forward() {
+    assert_eq!(Logged(Plain).line(42), "log: 42");
+}

@@ -22,7 +22,7 @@ impl<C> OffsetClock<C> {
         Self { inner, offset, behind: true }
     }
 
-    /// The clock offset.
+    /// The clock this one is offset from.
     pub fn inner(&self) -> &C {
         &self.inner
     }

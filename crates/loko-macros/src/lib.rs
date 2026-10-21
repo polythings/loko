@@ -40,18 +40,21 @@ pub fn resource(args: TokenStream, input: TokenStream) -> TokenStream {
     }
 }
 
-/// The accessor of resource `name`: `Clock` → `clock`, `ObjectStore` → `object_store`.
+/// The accessor of resource `name`: `Clock` → `clock`, `ObjectStore` → `object_store`,
+/// `HTTPClient` → `http_client`. A word starts at a capital after a lowercase letter or digit, or at
+/// the last capital of a run followed by a lowercase letter.
 fn accessor(name: &Ident) -> Ident {
+    let chars: Vec<char> = name.to_string().chars().collect();
     let mut snake = String::new();
-    for (i, c) in name.to_string().chars().enumerate() {
-        if c.is_uppercase() {
-            if i > 0 {
+    for (i, &c) in chars.iter().enumerate() {
+        if c.is_uppercase() && i > 0 {
+            let after_lower = chars[i - 1].is_lowercase() || chars[i - 1].is_ascii_digit();
+            let ends_run = chars[i - 1].is_uppercase() && chars.get(i + 1).is_some_and(|n| n.is_lowercase());
+            if after_lower || ends_run {
                 snake.push('_');
             }
-            snake.extend(c.to_lowercase());
-        } else {
-            snake.push(c);
         }
+        snake.extend(c.to_lowercase());
     }
     Ident::new(&snake, name.span())
 }
@@ -96,6 +99,36 @@ impl VisitMut for HeldAssoc<'_> {
     }
 }
 
+/// Finds `Self` used as a type on its own (`-> Self`, `Option<Self>`), not as `Self::Assoc`.
+#[derive(Default)]
+struct BareSelf(Option<Span>);
+
+impl syn::visit::Visit<'_> for BareSelf {
+    fn visit_type_path(&mut self, path: &TypePath) {
+        if path.qself.is_none() && path.path.segments.len() == 1 && path.path.segments[0].ident == "Self" {
+            self.0.get_or_insert(path.span());
+        }
+        syn::visit::visit_type_path(self, path);
+    }
+}
+
+/// An error if `sig` uses `Self` as a type: the holder of a resource isn't the resource held, so a
+/// forwarded `Self` would be the wrong type.
+fn reject_bare_self(sig: &Signature) -> syn::Result<()> {
+    let mut found = BareSelf::default();
+    for input in sig.inputs.iter().skip(1) {
+        syn::visit::Visit::visit_fn_arg(&mut found, input);
+    }
+    syn::visit::Visit::visit_return_type(&mut found, &sig.output);
+    match found.0 {
+        Some(span) => Err(Error::new(
+            span,
+            "loko resource methods can't take or return `Self`: a type holding the resource isn't the resource",
+        )),
+        None => Ok(()),
+    }
+}
+
 /// Names the arguments of `sig` (after `&self`) `arg0`, `arg1`, …, so a body can pass them on.
 fn name_arguments(sig: &mut Signature) -> syn::Result<Vec<Ident>> {
     match sig.inputs.first() {
@@ -111,6 +144,11 @@ fn name_arguments(sig: &mut Signature) -> syn::Result<Vec<Ident>> {
         args.push(ident);
     }
     Ok(args)
+}
+
+/// The `#[cfg]` and `#[cfg_attr]` attributes of a trait item, which its generated items need too.
+fn cfgs(attrs: &[syn::Attribute]) -> Vec<&syn::Attribute> {
+    attrs.iter().filter(|a| a.path().is_ident("cfg") || a.path().is_ident("cfg_attr")).collect()
 }
 
 /// `sig { call }`, awaiting the call in an async method.
@@ -137,22 +175,25 @@ fn expand_resource(item: &ItemTrait) -> syn::Result<TokenStream2> {
     let name = &item.ident;
     let has: Path = format_ident!("Has{}", name).into();
     let get = accessor(name);
-    let held = quote! { <<T as #has>::#name as #name> };
+    // A name for the blanket impl's type that a method's own generics won't use.
+    let holder = format_ident!("Loko{}Holder", name);
+    let held = quote! { <<#holder as #has>::#name as #name> };
 
     let (mut has_items, mut impl_items) = (vec![], vec![]);
     for trait_item in &item.items {
         match trait_item {
             TraitItem::Type(t) => {
-                let ident = &t.ident;
+                let (ident, cfgs) = (&t.ident, cfgs(&t.attrs));
                 let (_, ty_generics, where_clause) = t.generics.split_for_impl();
-                impl_items.push(quote! { type #ident #ty_generics = #held::#ident #ty_generics #where_clause; });
+                impl_items
+                    .push(quote! { #(#cfgs)* type #ident #ty_generics = #held::#ident #ty_generics #where_clause; });
             }
             TraitItem::Const(c) => {
-                let (ident, ty) = (&c.ident, &c.ty);
-                impl_items.push(quote! { const #ident: #ty = #held::#ident; });
+                let (ident, ty, cfgs) = (&c.ident, &c.ty, cfgs(&c.attrs));
+                impl_items.push(quote! { #(#cfgs)* const #ident: #ty = #held::#ident; });
             }
             TraitItem::Fn(f) => {
-                let (has_item, impl_item) = forward_fn(f, &has, name, &get)?;
+                let (has_item, impl_item) = forward_fn(f, &has, name, &get, &holder)?;
                 has_items.push(has_item);
                 impl_items.push(impl_item);
             }
@@ -182,7 +223,7 @@ fn expand_resource(item: &ItemTrait) -> syn::Result<TokenStream2> {
         }
 
         #[automatically_derived]
-        impl<T: #has #bound> #name for T {
+        impl<#holder: #has #bound> #name for #holder {
             #(#impl_items)*
         }
     })
@@ -190,9 +231,17 @@ fn expand_resource(item: &ItemTrait) -> syn::Result<TokenStream2> {
 
 /// For a method of the resource: its forwarding method in `HasX` (`wrapped_<method>`, calling the
 /// held resource), and its method in the blanket impl (calling the `HasX` one).
-fn forward_fn(f: &TraitItemFn, has: &Path, name: &Ident, get: &Ident) -> syn::Result<(TokenStream2, TokenStream2)> {
+fn forward_fn(
+    f: &TraitItemFn,
+    has: &Path,
+    name: &Ident,
+    get: &Ident,
+    holder: &Ident,
+) -> syn::Result<(TokenStream2, TokenStream2)> {
+    reject_bare_self(&f.sig)?;
     let mut sig = f.sig.clone();
     let args = name_arguments(&mut sig)?;
+    let cfgs = cfgs(&f.attrs);
     let ident = sig.ident.clone();
     let wrapped_ident = wrapped(&ident);
 
@@ -204,8 +253,9 @@ fn forward_fn(f: &TraitItemFn, has: &Path, name: &Ident, get: &Ident) -> syn::Re
         format!("Forwards [`{name}::{ident}`] to the held resource; a `#[loko::wraps]` implementation may replace it.");
     let has_method = method(&has_sig, &has_call);
 
-    let impl_call = quote! { <T as #has>::#wrapped_ident(self, #(#args),*) };
-    Ok((quote! { #[doc = #doc] #[doc(hidden)] #has_method }, method(&sig, &impl_call)))
+    let impl_call = quote! { <#holder as #has>::#wrapped_ident(self, #(#args),*) };
+    let impl_method = method(&sig, &impl_call);
+    Ok((quote! { #(#cfgs)* #[doc = #doc] #[doc(hidden)] #has_method }, quote! { #(#cfgs)* #impl_method }))
 }
 
 /// Implements `Has<Resource>` for each `#[provides(Resource, …)]` on a field, so the struct is each
@@ -329,6 +379,9 @@ mod tests {
     fn accessors_are_snake_case() {
         assert_eq!(accessor(&format_ident!("Clock")), "clock");
         assert_eq!(accessor(&format_ident!("ObjectStore")), "object_store");
+        assert_eq!(accessor(&format_ident!("HTTPClient")), "http_client");
+        assert_eq!(accessor(&format_ident!("S3Store")), "s3_store");
+        assert_eq!(accessor(&format_ident!("IOError")), "io_error");
     }
 
     #[test]
@@ -341,6 +394,17 @@ mod tests {
             (has.to_token_stream().to_string(), name.to_string()),
             ("loko :: HasRandom".into(), "Random".into())
         );
+    }
+
+    #[test]
+    fn bare_self_is_rejected() {
+        for sig in
+            [quote! { fn duplicate(&self) -> Self where Self: Sized }, quote! { fn merge(&self, other: Option<Self>) }]
+        {
+            assert!(reject_bare_self(&syn::parse2(sig).unwrap()).is_err());
+        }
+        let ok: Signature = parse_quote! { fn upload(&self) -> Result<Self::Upload> where Self: Sized };
+        assert!(reject_bare_self(&ok).is_ok(), "associated types and where clauses are fine");
     }
 
     #[test]

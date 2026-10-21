@@ -15,6 +15,7 @@
 //! let store = ObjectStoreAdapter::new(Arc::new(InMemory::new()), "memory://");
 //! ```
 
+use std::fmt;
 use std::future::Future;
 use std::sync::Arc;
 
@@ -25,10 +26,18 @@ use object_store::{MultipartUpload, ObjectStore, ObjectStoreExt, PutMode, PutOpt
 use url::Url;
 
 /// A [`Store`] over an `object_store` client whose objects have URIs under `root`.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ObjectStoreAdapter {
     store: Arc<dyn ObjectStore>,
     root: String,
+    /// The root as shown in errors and `Debug`, without a password.
+    shown: String,
+}
+
+impl fmt::Debug for ObjectStoreAdapter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ObjectStoreAdapter").field("store", &self.store).field("root", &self.shown).finish()
+    }
 }
 
 fn store_error(e: object_store::Error) -> Error {
@@ -50,7 +59,8 @@ impl ObjectStoreAdapter {
         if !root.ends_with('/') {
             root.push('/');
         }
-        Self { store, root }
+        let shown = redacted(&root);
+        Self { store, root, shown }
     }
 
     /// The store for `url`'s scheme and bucket (`s3://bucket/…`), configured with `options`
@@ -73,7 +83,7 @@ impl ObjectStoreAdapter {
     fn path(&self, uri: &str) -> Result<Path> {
         let rest = uri
             .strip_prefix(&self.root)
-            .ok_or_else(|| Error::Invalid(format!("{uri} is outside this store ({})", self.root)))?;
+            .ok_or_else(|| Error::Invalid(format!("{uri} is outside this store ({})", self.shown)))?;
         Path::parse(rest).map_err(|e| Error::Invalid(format!("{uri}: {e}")))
     }
 
@@ -83,14 +93,29 @@ impl ObjectStoreAdapter {
     }
 }
 
-/// The root of `url`: its scheme, host, and port (`http://localhost:9000/`), without the path or
-/// credentials. `file:///data/t` gives `file:///`, a file system rooted at `/`.
+/// The root of `url`: everything before the path, so its scheme, userinfo, host, and port
+/// (`abfss://filesystem@account.dfs.core.windows.net/`, `http://localhost:9000/`), which the
+/// URIs of its objects start with. `file:///data/t` gives `file:///`, a file system rooted at `/`.
 fn root_of(url: &Url) -> String {
-    match (url.host_str().filter(|h| !h.is_empty()), url.port()) {
-        (Some(host), Some(port)) => format!("{}://{host}:{port}/", url.scheme()),
-        (Some(host), None) => format!("{}://{host}/", url.scheme()),
-        (None, _) => format!("{}:///", url.scheme()),
+    let Some(host) = url.host_str().filter(|h| !h.is_empty()) else {
+        return format!("{}:///", url.scheme());
+    };
+    let userinfo = match (url.username(), url.password()) {
+        ("", None) => String::new(),
+        (user, None) => format!("{user}@"),
+        (user, Some(password)) => format!("{user}:{password}@"),
+    };
+    let port = url.port().map(|p| format!(":{p}")).unwrap_or_default();
+    format!("{}://{userinfo}{host}{port}/", url.scheme())
+}
+
+/// `root` with any password replaced by `***`, for errors and `Debug`.
+fn redacted(root: &str) -> String {
+    let Ok(mut url) = Url::parse(root) else { return root.to_string() };
+    if url.password().is_none() || url.set_password(Some("***")).is_err() {
+        return root.to_string();
     }
+    url.to_string()
 }
 
 /// An offset for listing directory `dir` that skips objects sorting before `name`, the start of the
@@ -185,7 +210,7 @@ impl Store for ObjectStoreAdapter {
         let split = prefix.strip_prefix(&self.root).map(|rest| rest.rsplit_once('/').unwrap_or(("", rest)));
         async move {
             let (relative, name) =
-                split.ok_or_else(|| Error::Invalid(format!("{prefix} is outside this store ({})", self.root)))?;
+                split.ok_or_else(|| Error::Invalid(format!("{prefix} is outside this store ({})", self.shown)))?;
             let dir = Path::parse(relative).map_err(|e| Error::Invalid(format!("{prefix}: {e}")))?;
             let dir = (!relative.is_empty()).then_some(&dir);
             let listing = match list_offset(relative, name) {
@@ -301,12 +326,23 @@ mod tests {
     }
 
     #[test]
-    fn roots_keep_the_port_and_drop_credentials() {
+    fn roots_keep_what_uris_start_with() {
         let root = |url: &str| root_of(&Url::parse(url).unwrap());
         assert_eq!(root("http://localhost:9000/bucket/t"), "http://localhost:9000/");
-        assert_eq!(root("https://user:secret@example.com:443/t"), "https://example.com/", "443 is https's own");
+        assert_eq!(root("https://example.com:443/t"), "https://example.com/", "443 is https's own");
+        assert_eq!(root("abfss://fs@account.dfs.core.windows.net/t"), "abfss://fs@account.dfs.core.windows.net/");
+        assert_eq!(root("https://user:secret@example.com/t"), "https://user:secret@example.com/");
         assert_eq!(root("s3://bucket/warehouse/t"), "s3://bucket/");
         assert_eq!(root("file:///data/t"), "file:///");
+    }
+
+    #[tokio::test]
+    async fn passwords_stay_out_of_errors_and_debug() {
+        let store = ObjectStoreAdapter::new(Arc::new(InMemory::new()), "memory://user:secret@host/");
+        assert!(!format!("{store:?}").contains("secret"));
+        let Err(Error::Invalid(message)) = store.get("s3://elsewhere/x").await else { panic!("outside the store") };
+        assert!(message.contains("user:***@host") && !message.contains("secret"), "{message}");
+        assert_eq!(redacted("s3://bucket/"), "s3://bucket/");
     }
 
     #[tokio::test]

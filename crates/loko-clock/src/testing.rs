@@ -18,8 +18,12 @@ impl TestClock {
     }
 
     /// A clock `ms` milliseconds after the Unix epoch.
+    ///
+    /// # Panics
+    ///
+    /// If the platform can't hold that time ([`from_ms`]): before the epoch on WASI.
     pub fn at_ms(ms: i64) -> Self {
-        Self::new(from_ms(ms))
+        Self::new(from_ms(ms).expect("a time this platform can hold"))
     }
 
     /// Moves the clock forward by `duration`.
@@ -61,8 +65,11 @@ mod tests {
         let other = clock.clone();
         other.advance(Duration::from_millis(250));
         assert_eq!(clock.now_ms(), 5_250, "clones share the time");
-        clock.set(from_ms(-1_500));
-        assert_eq!(clock.now_ms(), -1_500);
+        // Times before the epoch exist natively, not on WASI.
+        if let Some(before) = from_ms(-1_500) {
+            clock.set(before);
+            assert_eq!(clock.now_ms(), -1_500);
+        }
         assert_eq!(TestClock::default().now(), UNIX_EPOCH);
     }
 

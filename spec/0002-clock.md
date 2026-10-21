@@ -21,7 +21,8 @@ and skip the waits.
 
 - **`Clock`:** `now() -> SystemTime`, `now_ms() -> i64` (provided: milliseconds since the Unix epoch, negative before
   it, saturating), and `sleep(Duration) -> impl Future<Output = ()>`.
-- **`from_ms(i64) -> SystemTime`:** the inverse of `now_ms`.
+- **`from_ms(i64) -> Option<SystemTime>`:** the inverse of `now_ms`, `None` where the platform can't hold the time
+  (before the epoch on WASI).
 - **`TestClock`:** starts where told (`new`, `at_ms`; the Unix epoch by default), moves on `advance` and `set`, and
   on `sleep`, which moves it forward by the sleep and returns at once. Clones share the time.
 - **`StdClock`:** `SystemTime::now`, and a `sleep` that blocks the thread before returning a ready future: for
@@ -30,8 +31,8 @@ and skip the waits.
 - **`OffsetClock`:** a wrapper ([spec 1](0001-resources.md)): another clock, `ahead` or `behind` by a fixed
   `Duration`, for testing code against clock skew. It writes `now_ms` as well as `now`; sleeping is the other clock's.
 - **`to_ms(SystemTime) -> i64`:** what `now_ms` computes, for wrappers that change `now`.
-- **`JsClock`** (feature `js`, `wasm32-unknown-unknown`): `Date.now` and a promise around `setTimeout` (resolved at
-  once on a host without `setTimeout`).
+- **`JsClock`** (feature `js`, `wasm32-unknown-unknown`): `Date.now` and a promise around `setTimeout`, in steps of
+  at most 2³¹ − 1 ms (the longest delay `setTimeout` holds); resolved at once on a host without `setTimeout`.
 
 ## Decisions
 

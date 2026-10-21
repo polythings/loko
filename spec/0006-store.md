@@ -33,7 +33,8 @@ read and write through it.
   - `PrefixedStore`: passes on only URIs under its prefix (a `/` is added if missing), refusing the rest and any `.`
     or `..` segment with `Invalid`. A `delete` with one URI outside deletes nothing.
 - **`ObjectStoreAdapter`** (`loko-object-store`): a `Store` over any `object_store` client, from a client and a root
-  URI or from a URL with options (the root keeps the URL's port and drops any credentials). Put-if-absent is
+  URI or from a URL with options (the root is everything before the path: scheme, userinfo such as Azure's
+  filesystem, host, and port; a password shows as `***` in errors and `Debug`). Put-if-absent is
   `PutMode::Create`. An empty range, or one starting past the end, reads as no bytes, as in `MemoryStore`. Listing a
   prefix lists its directory from an offset just before the prefix, so `…/metadata/v` skips the manifests before it. The crate enables no backends; the application
   turns on the ones it needs on its own `object_store` dependency.

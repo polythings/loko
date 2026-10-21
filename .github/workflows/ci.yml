@@ -18,6 +18,19 @@ env:
   CARGO_INCREMENTAL: 0
 
 jobs:
+  hooks:
+    name: Hooks (YAML, TOML, private keys, rustfmt)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install   # rustfmt, for the rustfmt hook
+      # The commit-stage hooks of .pre-commit-config.yaml; the push-stage ones (clippy) run in the jobs below.
+      - uses: j178/prek-action@44924fe9ef4a6f88253c4b6b1bf11c689d3ce53d # v3.1.0
+        with:
+          prek-version: 0.5.7
+
   native:
     name: Native (format, lint, tests)
     runs-on: ubuntu-latest
