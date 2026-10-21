@@ -18,7 +18,6 @@ getrandom = ["dep:getrandom"]
 js = ["dep:js-sys", "dep:wasm-bindgen"]
 
 [dependencies]
-loko-macros.workspace = true
 rand_core.workspace = true
 
 [target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]

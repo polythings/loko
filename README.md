@@ -605,7 +605,8 @@ each is for, when to use which, and what loko does differently.
 | [`loko-object-store`](crates/loko-object-store) | A `Store` over an `object_store` client: S3, GCS, Azure, local files, memory |
 | [`loko-macros`](crates/loko-macros) | `#[resource]`, `#[loko::bundle]`, and `#[wraps]` |
 
-A library that needs one resource can depend on its crate alone.
+A library that needs one resource can depend on its crate alone. The resource crates have no dependencies of their
+own (`loko-random` has `rand_core`), and no macros: only `loko` and code defining its own resources use `loko-macros`.
 
 ## Development
 

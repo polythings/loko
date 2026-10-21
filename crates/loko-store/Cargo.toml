@@ -10,10 +10,6 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-[dependencies]
-loko-macros.workspace = true
-thiserror.workspace = true
-
 [package.metadata.docs.rs]
 all-features = true
 

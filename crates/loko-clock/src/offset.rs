@@ -28,9 +28,14 @@ impl<C> OffsetClock<C> {
     }
 }
 
-#[loko_macros::wraps(inner: C)]
-impl<C: Clock> Clock for OffsetClock<C> {
-    fn now(&self) -> SystemTime {
+impl<C: Clock> HasClock for OffsetClock<C> {
+    type Clock = C;
+
+    fn clock(&self) -> &C {
+        &self.inner
+    }
+
+    fn wrapped_now(&self) -> SystemTime {
         let now = self.inner.now();
         let moved = if self.behind { now.checked_sub(self.offset) } else { now.checked_add(self.offset) };
         // Past what `SystemTime` holds: stay at the other clock's time rather than panic.
@@ -38,7 +43,7 @@ impl<C: Clock> Clock for OffsetClock<C> {
     }
 
     // The other clock's `now_ms` would leave out the offset.
-    fn now_ms(&self) -> i64 {
+    fn wrapped_now_ms(&self) -> i64 {
         to_ms(Clock::now(self))
     }
 }

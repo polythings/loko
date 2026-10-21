@@ -75,44 +75,49 @@ impl<S> CountingStore<S> {
     }
 }
 
-#[loko_macros::wraps(inner: S)]
-impl<S: Store> Store for CountingStore<S> {
-    fn get(&self, uri: &str) -> impl Future<Output = Result<Option<Vec<u8>>>> {
+impl<S: Store> HasStore for CountingStore<S> {
+    type Store = S;
+
+    fn store(&self) -> &S {
+        &self.inner
+    }
+
+    fn wrapped_get(&self, uri: &str) -> impl Future<Output = Result<Option<Vec<u8>>>> {
         self.count(0);
         self.inner.get(uri)
     }
 
-    fn get_range(&self, uri: &str, start: u64, len: u64) -> impl Future<Output = Result<Vec<u8>>> {
+    fn wrapped_get_range(&self, uri: &str, start: u64, len: u64) -> impl Future<Output = Result<Vec<u8>>> {
         self.count(1);
         self.inner.get_range(uri, start, len)
     }
 
-    fn exists(&self, uri: &str) -> impl Future<Output = Result<bool>> {
+    fn wrapped_exists(&self, uri: &str) -> impl Future<Output = Result<bool>> {
         self.count(2);
         self.inner.exists(uri)
     }
 
-    fn put(&self, uri: &str, bytes: Vec<u8>) -> impl Future<Output = Result<()>> {
+    fn wrapped_put(&self, uri: &str, bytes: Vec<u8>) -> impl Future<Output = Result<()>> {
         self.count(3);
         self.inner.put(uri, bytes)
     }
 
-    fn put_if_absent(&self, uri: &str, bytes: Vec<u8>) -> impl Future<Output = Result<bool>> {
+    fn wrapped_put_if_absent(&self, uri: &str, bytes: Vec<u8>) -> impl Future<Output = Result<bool>> {
         self.count(4);
         self.inner.put_if_absent(uri, bytes)
     }
 
-    fn upload(&self, uri: &str) -> impl Future<Output = Result<S::Upload>> {
+    fn wrapped_upload(&self, uri: &str) -> impl Future<Output = Result<S::Upload>> {
         self.count(5);
         self.inner.upload(uri)
     }
 
-    fn list(&self, prefix: &str) -> impl Future<Output = Result<Vec<Listed>>> {
+    fn wrapped_list(&self, prefix: &str) -> impl Future<Output = Result<Vec<Listed>>> {
         self.count(6);
         self.inner.list(prefix)
     }
 
-    fn delete(&self, uris: &[String]) -> impl Future<Output = Result<()>> {
+    fn wrapped_delete(&self, uris: &[String]) -> impl Future<Output = Result<()>> {
         self.count(7);
         self.inner.delete(uris)
     }

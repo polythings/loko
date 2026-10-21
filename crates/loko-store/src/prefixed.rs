@@ -38,44 +38,49 @@ impl<S> PrefixedStore<S> {
     }
 }
 
-#[loko_macros::wraps(inner: S)]
-impl<S: Store> Store for PrefixedStore<S> {
-    async fn get(&self, uri: &str) -> Result<Option<Vec<u8>>> {
+impl<S: Store> HasStore for PrefixedStore<S> {
+    type Store = S;
+
+    fn store(&self) -> &S {
+        &self.inner
+    }
+
+    async fn wrapped_get(&self, uri: &str) -> Result<Option<Vec<u8>>> {
         self.check(uri)?;
         self.inner.get(uri).await
     }
 
-    async fn get_range(&self, uri: &str, start: u64, len: u64) -> Result<Vec<u8>> {
+    async fn wrapped_get_range(&self, uri: &str, start: u64, len: u64) -> Result<Vec<u8>> {
         self.check(uri)?;
         self.inner.get_range(uri, start, len).await
     }
 
-    async fn exists(&self, uri: &str) -> Result<bool> {
+    async fn wrapped_exists(&self, uri: &str) -> Result<bool> {
         self.check(uri)?;
         self.inner.exists(uri).await
     }
 
-    async fn put(&self, uri: &str, bytes: Vec<u8>) -> Result<()> {
+    async fn wrapped_put(&self, uri: &str, bytes: Vec<u8>) -> Result<()> {
         self.check(uri)?;
         self.inner.put(uri, bytes).await
     }
 
-    async fn put_if_absent(&self, uri: &str, bytes: Vec<u8>) -> Result<bool> {
+    async fn wrapped_put_if_absent(&self, uri: &str, bytes: Vec<u8>) -> Result<bool> {
         self.check(uri)?;
         self.inner.put_if_absent(uri, bytes).await
     }
 
-    async fn upload(&self, uri: &str) -> Result<S::Upload> {
+    async fn wrapped_upload(&self, uri: &str) -> Result<S::Upload> {
         self.check(uri)?;
         self.inner.upload(uri).await
     }
 
-    async fn list(&self, prefix: &str) -> Result<Vec<Listed>> {
+    async fn wrapped_list(&self, prefix: &str) -> Result<Vec<Listed>> {
         self.check(prefix)?;
         self.inner.list(prefix).await
     }
 
-    async fn delete(&self, uris: &[String]) -> Result<()> {
+    async fn wrapped_delete(&self, uris: &[String]) -> Result<()> {
         uris.iter().try_for_each(|uri| self.check(uri))?;
         self.inner.delete(uris).await
     }

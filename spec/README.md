@@ -29,7 +29,7 @@ loko's design. Start here, people and agents alike.
 
 ## Index
 
-7 specs: 7 done. Decisions D1–D18.
+7 specs: 7 done. Decisions D1–D19.
 
 | # | Spec | Status | Updated |
 |---:|---|---|---|

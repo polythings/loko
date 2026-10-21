@@ -29,7 +29,6 @@ loko-store = { path = "crates/loko-store", version = "0.2.0" }
 loko-object-store = { path = "crates/loko-object-store", version = "0.2.0" }
 loko-macros = { path = "crates/loko-macros", version = "0.2.0" }
 loko = { path = "crates/loko", version = "0.2.0" }
-thiserror = "2"
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 object_store = { version = "0.14", default-features = false }
 url = "2"

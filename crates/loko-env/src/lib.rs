@@ -22,11 +22,47 @@ pub use map::MapEnv;
 pub use system::SystemEnv;
 
 /// Environment variables.
-#[loko_macros::resource]
 pub trait Env {
     /// The variable `name`, or `None` if it isn't set (or isn't valid Unicode).
     fn var(&self, name: &str) -> Option<String>;
 
     /// Every variable, as `(name, value)` pairs.
     fn vars(&self) -> Vec<(String, String)>;
+}
+
+/// A type that holds a [`Env`], and so is one: `#[loko::bundle]` implements this for a field,
+/// and `#[loko::wraps]` for a wrapper that changes some methods. It's what `#[loko::resource]`
+/// generates, written out so this crate needs no macros.
+pub trait HasEnv {
+    /// The resource held.
+    type Env: Env;
+
+    /// The [`Env`] this holds.
+    fn env(&self) -> &Self::Env;
+
+    /// Forwards [`Env::var`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    #[doc(hidden)]
+    #[inline]
+    fn wrapped_var(&self, name: &str) -> Option<String> {
+        self.env().var(name)
+    }
+
+    /// Forwards [`Env::vars`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    #[doc(hidden)]
+    #[inline]
+    fn wrapped_vars(&self) -> Vec<(String, String)> {
+        self.env().vars()
+    }
+}
+
+impl<H: HasEnv> Env for H {
+    #[inline]
+    fn var(&self, name: &str) -> Option<String> {
+        self.wrapped_var(name)
+    }
+
+    #[inline]
+    fn vars(&self) -> Vec<(String, String)> {
+        self.wrapped_vars()
+    }
 }

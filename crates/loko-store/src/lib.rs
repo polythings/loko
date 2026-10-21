@@ -38,22 +38,31 @@ pub use read_only::ReadOnlyStore;
 pub use store::{HasStore, Listed, Store, Upload};
 
 /// An error of a store.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum Error {
     /// The object isn't there.
-    #[error("not found: {0}")]
     NotFound(String),
     /// The request doesn't fit the store (a URI outside it, a bad path).
-    #[error("invalid: {0}")]
     Invalid(String),
     /// The store can't do this (a backend without conditional writes).
-    #[error("unsupported: {0}")]
     Unsupported(String),
     /// The store failed.
-    #[error("store: {0}")]
     Store(String),
 }
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotFound(m) => write!(f, "not found: {m}"),
+            Self::Invalid(m) => write!(f, "invalid: {m}"),
+            Self::Unsupported(m) => write!(f, "unsupported: {m}"),
+            Self::Store(m) => write!(f, "store: {m}"),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
 
 /// `Result` with [`Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;

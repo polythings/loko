@@ -10,9 +10,6 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-[dependencies]
-loko-macros.workspace = true
-
 [features]
 default = []
 # `TokioClock`: the system clock and tokio's timer (native targets).

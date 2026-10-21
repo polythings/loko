@@ -66,6 +66,7 @@ anyone define new resources, bundle them with loko's, and wrap one implementatio
 | D16 | The things passed are called resources (`#[resource]`), not services: "service" means a request handler in Rust (tower) and a server elsewhere, and a resource is what Bevy calls its shared `Time`. | Accepted |
 | D17 | Bundles are declared with `#[loko::bundle]` on the struct and `#[loko::has(X, …)]` on fields: the struct-level name says what the struct is, the field-level one what each field holds. An attribute macro (not a derive) so the field attribute can be the path `loko::has` and the three macros look alike. | Accepted |
 | D18 | Wrappers implement `HasX` through `#[wraps]`, overriding hidden `wrapped_` methods, so they write only what they change. The forwarding lives in `HasX`, whose signatures resolve where the trait is defined, rather than in generated macros that would resolve them at the wrapper. | Accepted |
+| D19 | loko's own resource crates write out what `#[resource]` generates instead of using the macro, so they have no proc-macro dependency (and `loko-store` no `thiserror`): `loko-clock`, `loko-env`, and `loko-console` depend on nothing, `loko-random` only on `rand_core`. | Accepted |
 
 ## Open questions and issues
 
@@ -79,3 +80,4 @@ anyone define new resources, bundle them with loko's, and wrap one implementatio
 - 2026-10-20: built for 0.2, as services with `#[derive(Services)]`.
 - 2026-10-21: services renamed resources (D16); `#[derive(Services)]` became `#[loko::bundle]` with `#[loko::has]` fields (D17);
   `#[wraps]` added (D18).
+- 2026-10-21: loko's own resources written out by hand, without the macros (D19).

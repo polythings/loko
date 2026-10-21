@@ -38,7 +38,6 @@ pub use system::{OsRandom, OsRng};
 pub use testing::{SeededRandom, SeededRng};
 
 /// A source of random number generators.
-#[loko_macros::resource]
 pub trait Random {
     /// The generator [`rng`](Random::rng) hands out.
     type Rng: rand_core::Rng;
@@ -46,4 +45,31 @@ pub trait Random {
     /// A generator of the caller's own: draw from it with `&mut` as much as needed, with no locks.
     /// Whether it is fit for secrets depends on the implementation: ask for `Random<Rng: CryptoRng>`.
     fn rng(&self) -> Self::Rng;
+}
+
+/// A type that holds a [`Random`], and so is one: `#[loko::bundle]` implements this for a field,
+/// and `#[loko::wraps]` for a wrapper that changes some methods. It's what `#[loko::resource]`
+/// generates, written out so this crate needs no macros.
+pub trait HasRandom {
+    /// The resource held.
+    type Random: Random;
+
+    /// The [`Random`] this holds.
+    fn random(&self) -> &Self::Random;
+
+    /// Forwards [`Random::rng`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    #[doc(hidden)]
+    #[inline]
+    fn wrapped_rng(&self) -> <Self::Random as Random>::Rng {
+        self.random().rng()
+    }
+}
+
+impl<H: HasRandom> Random for H {
+    type Rng = <<H as HasRandom>::Random as Random>::Rng;
+
+    #[inline]
+    fn rng(&self) -> Self::Rng {
+        self.wrapped_rng()
+    }
 }

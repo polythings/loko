@@ -25,21 +25,26 @@ fn refused(uri: &str) -> Error {
     Error::Unsupported(format!("{uri}: the store is read-only"))
 }
 
-#[loko_macros::wraps(inner: S)]
-impl<S: Store> Store for ReadOnlyStore<S> {
-    fn put(&self, uri: &str, _bytes: Vec<u8>) -> impl Future<Output = Result<()>> {
+impl<S: Store> HasStore for ReadOnlyStore<S> {
+    type Store = S;
+
+    fn store(&self) -> &S {
+        &self.inner
+    }
+
+    fn wrapped_put(&self, uri: &str, _bytes: Vec<u8>) -> impl Future<Output = Result<()>> {
         ready(Err(refused(uri)))
     }
 
-    fn put_if_absent(&self, uri: &str, _bytes: Vec<u8>) -> impl Future<Output = Result<bool>> {
+    fn wrapped_put_if_absent(&self, uri: &str, _bytes: Vec<u8>) -> impl Future<Output = Result<bool>> {
         ready(Err(refused(uri)))
     }
 
-    fn upload(&self, uri: &str) -> impl Future<Output = Result<S::Upload>> {
+    fn wrapped_upload(&self, uri: &str) -> impl Future<Output = Result<S::Upload>> {
         ready(Err(refused(uri)))
     }
 
-    fn delete(&self, uris: &[String]) -> impl Future<Output = Result<()>> {
+    fn wrapped_delete(&self, uris: &[String]) -> impl Future<Output = Result<()>> {
         ready(Err(refused(uris.first().map_or("", String::as_str))))
     }
 }

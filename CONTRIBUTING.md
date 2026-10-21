@@ -38,7 +38,11 @@ we took.
 
 ## Rust
 
-- **Resources:** a trait marked `#[loko_macros::resource]`, methods on `&self`, async methods returning `impl Future`
+- **loko's own resources need no macros.** Their crates write out what `#[resource]` generates (`HasX`, its
+  `wrapped_` methods, and the blanket impl) and implement their wrappers' `HasX` by hand, so a library can depend on
+  `loko-clock` without `syn`. Keep that code in the macro's shape; the tests in `crates/loko/tests` use it with
+  `#[loko::bundle]` and `#[loko::wraps]`.
+- **Resources:** a trait marked `#[loko_macros::resource]` (or written out, as above), methods on `&self`, async methods returning `impl Future`
   without `Send`. Implementations that hold state share it between clones (`Arc<Mutex<…>>`).
 - **State in resources:** methods take `&self`, so state that changes sits behind a `Mutex` or an atomic (counters).
   Lock only for the synchronous part of a call: never hold a `std::sync::Mutex` guard or a `RefCell` borrow across

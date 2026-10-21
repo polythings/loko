@@ -10,9 +10,6 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-[dependencies]
-loko-macros.workspace = true
-
 [features]
 default = []
 # `JsConsole`: `console.log` and `console.error` (`wasm32-unknown-unknown` with a JavaScript host).

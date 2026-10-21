@@ -42,7 +42,6 @@ pub use tokio_clock::TokioClock;
 /// The time and a timer.
 ///
 /// The future isn't required to be `Send`, so a clock can wrap JavaScript timers.
-#[loko_macros::resource]
 pub trait Clock {
     /// The current time.
     fn now(&self) -> SystemTime;
@@ -54,6 +53,55 @@ pub trait Clock {
 
     /// Waits `duration`.
     fn sleep(&self, duration: Duration) -> impl Future<Output = ()>;
+}
+
+/// A type that holds a [`Clock`], and so is one: `#[loko::bundle]` implements this for a field,
+/// and `#[loko::wraps]` for a wrapper that changes some methods. It's what `#[loko::resource]`
+/// generates, written out so this crate needs no macros.
+pub trait HasClock {
+    /// The resource held.
+    type Clock: Clock;
+
+    /// The [`Clock`] this holds.
+    fn clock(&self) -> &Self::Clock;
+
+    /// Forwards [`Clock::now`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    #[doc(hidden)]
+    #[inline]
+    fn wrapped_now(&self) -> SystemTime {
+        self.clock().now()
+    }
+
+    /// Forwards [`Clock::now_ms`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    #[doc(hidden)]
+    #[inline]
+    fn wrapped_now_ms(&self) -> i64 {
+        self.clock().now_ms()
+    }
+
+    /// Forwards [`Clock::sleep`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    #[doc(hidden)]
+    #[inline]
+    fn wrapped_sleep(&self, duration: Duration) -> impl Future<Output = ()> {
+        self.clock().sleep(duration)
+    }
+}
+
+impl<H: HasClock> Clock for H {
+    #[inline]
+    fn now(&self) -> SystemTime {
+        self.wrapped_now()
+    }
+
+    #[inline]
+    fn now_ms(&self) -> i64 {
+        self.wrapped_now_ms()
+    }
+
+    #[inline]
+    fn sleep(&self, duration: Duration) -> impl Future<Output = ()> {
+        self.wrapped_sleep(duration)
+    }
 }
 
 /// Milliseconds from the Unix epoch to `time` (negative before it), saturating.
