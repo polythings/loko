@@ -221,7 +221,54 @@ async fn main() -> loko::store::Result<()> {
 }
 ```
 
-### 7. Your own resource
+### 7. Your own implementation of a resource
+
+loko's resources are ordinary traits, so you can implement one yourself: a clock on a runtime loko doesn't ship, an
+`Env` read from a config file, a `Store` over your own storage. Implement the required methods and the provided ones
+(here `now_ms`) come with it; then it goes anywhere the trait is asked for, and into bundles with `#[provides(Clock)]`.
+
+```rust
+use std::future::{Future, ready};
+use std::time::{Duration, Instant, SystemTime};
+
+use loko::Clock;
+
+/// A clock that runs `speed` times faster than real time, for demos and simulations where an hour
+/// of the program's time should pass in seconds.
+struct FastClock {
+    started: (SystemTime, Instant),
+    speed: u32,
+}
+
+impl FastClock {
+    fn new(speed: u32) -> Self {
+        Self { started: (SystemTime::now(), Instant::now()), speed }
+    }
+}
+
+impl Clock for FastClock {
+    fn now(&self) -> SystemTime {
+        let (wall, steady) = self.started;
+        wall + steady.elapsed() * self.speed
+    }
+
+    fn sleep(&self, duration: Duration) -> impl Future<Output = ()> {
+        // Blocks the thread, as StdClock does; on tokio, return `tokio::time::sleep(duration / self.speed)`.
+        std::thread::sleep(duration / self.speed);
+        ready(())
+    }
+}
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let clock = FastClock::new(1_000);
+    let before = clock.now_ms();
+    clock.sleep(Duration::from_secs(2)).await; // two seconds of clock time, two milliseconds of real time
+    assert!(clock.now_ms() - before >= 2_000);
+}
+```
+
+### 8. Your own resource
 
 `#[loko::resource]` makes any trait a resource, so a program's own dependencies (a mailer, a payment client, a feature
 flag service) work like loko's: a real implementation for the program, a test one that records, and a place in the
@@ -276,7 +323,7 @@ async fn main() -> std::io::Result<()> {
 }
 ```
 
-### 8. State in your own resources
+### 9. State in your own resources
 
 Every resource method takes `&self`, never `&mut self`. That's what lets one value be several resources at once
 (`greet(resources, resources)` in step 3), lets clones share state (a test keeps one `TestClock` and advances the one
@@ -326,7 +373,7 @@ hands out generators instead of numbers: `resources.rng()` locks at most once, a
 returns takes no lock at all, however many numbers you draw. The system implementations (`StdClock`, `OsRandom`,
 `SystemEnv`, `StdConsole`) hold no state and take no lock.
 
-### 9. Wrappers
+### 10. Wrappers
 
 A wrapper holds one implementation of a resource and is one itself, changing some methods. `#[loko::wraps(field:
 Type)]` on its `impl` forwards every method it doesn't write to the field.
@@ -385,7 +432,7 @@ async fn main() {
 A wrapper keeps the inner resource's associated types, and a provided method it doesn't write (such as `now_ms`)
 forwards to the inner one too, so write it when it depends on a method the wrapper changes.
 
-### 10. In the browser
+### 11. In the browser
 
 With feature `js` on `wasm32-unknown-unknown`, `JsPlatform` uses `Date.now`, `setTimeout`, `crypto.getRandomValues`,
 and the JavaScript console. The `retry` from step 2 runs unchanged:
