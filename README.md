@@ -226,6 +226,7 @@ async fn main() -> loko::store::Result<()> {
 loko's resources are ordinary traits, so you can implement one yourself: a clock on a runtime loko doesn't ship, an
 `Env` read from a config file, a `Store` over your own storage. Implement the required methods and the provided ones
 (here `now_ms`) come with it; then it goes anywhere the trait is asked for, and into bundles with `#[provides(Clock)]`.
+Step 11 makes the same clock as a wrapper around any other clock.
 
 ```rust
 use std::future::{Future, ready};
@@ -447,6 +448,59 @@ console.print_line("done").unwrap();
 console.print_error_line("as it is").unwrap();
 assert_eq!(platform.console.lines(), ["DONE"]);
 assert_eq!(platform.console.error_lines(), ["as it is"]);
+```
+
+Step 7's fast clock works better as a wrapper: it speeds up whatever clock it holds, so on tokio or in the browser its
+sleeps stay asynchronous instead of blocking the thread.
+
+```rust
+use std::future::Future;
+use std::time::{Duration, SystemTime};
+
+use loko::clock::{TestClock, to_ms};
+use loko::prelude::*;
+
+/// Any clock, running `speed` times faster from the moment the wrapper is made.
+struct Faster<C> {
+    inner: C,
+    started: SystemTime,
+    speed: u32,
+}
+
+impl<C: Clock> Faster<C> {
+    fn new(inner: C, speed: u32) -> Self {
+        let started = inner.now();
+        Self { inner, started, speed }
+    }
+}
+
+#[loko::wraps(inner: C)]
+impl<C: Clock> Clock for Faster<C> {
+    fn now(&self) -> SystemTime {
+        let elapsed = self.inner.now().duration_since(self.started).unwrap_or_default();
+        self.started + elapsed * self.speed
+    }
+
+    // Written too: the inner clock's `now_ms` would leave out the speed-up.
+    fn now_ms(&self) -> i64 {
+        to_ms(Clock::now(self))
+    }
+
+    fn sleep(&self, duration: Duration) -> impl Future<Output = ()> {
+        self.inner.sleep(duration / self.speed)
+    }
+}
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    // Over a test clock here; over TokioClock, StdClock, or JsClock in a program.
+    let real = TestClock::at_ms(0);
+    let fast = Faster::new(real.clone(), 60);
+    real.advance(Duration::from_secs(1));
+    assert_eq!(fast.now_ms(), 60_000, "a second of the inner clock is a minute");
+    fast.sleep(Duration::from_secs(60)).await;
+    assert_eq!((real.now_ms(), fast.now_ms()), (2_000, 120_000), "a minute's sleep is a second of the inner clock");
+}
 ```
 
 Wrappers stack, and loko has some ready-made: `OffsetClock` (a clock ahead or behind another, for clock-skew tests),
