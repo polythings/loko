@@ -5,17 +5,20 @@ to code as traits instead of reached for as globals, with test, system, and Java
 that bundle one of each.
 
 ```rust
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
-use loko::{Clock, Random, Rng, TestPlatform};
+use loko::Clock;
+use loko::clock::TestClock;
 
-fn id(services: &(impl Clock + Random)) -> String {
-    format!("{}-{:04x}", services.now_ms(), services.rng().next_u64() & 0xffff)
+/// Whether a session that started at `started` has expired.
+fn expired(clock: &impl Clock, started: SystemTime) -> bool {
+    clock.now() > started + Duration::from_secs(60 * 60)
 }
 
-let platform = TestPlatform::default(); // TokioPlatform, StdPlatform, or JsPlatform in a program
-platform.clock.advance(Duration::from_secs(1));
-assert_eq!(id(&platform), "1000-7e6f");
+let clock = TestClock::at_ms(0); // StdClock, TokioClock, or JsClock in a program
+let started = clock.now();
+clock.advance(Duration::from_secs(60 * 60 + 1)); // an hour passes, at once
+assert!(expired(&clock, started));
 ```
 
 | Feature | Adds |

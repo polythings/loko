@@ -1,9 +1,43 @@
 # loko
 
-Services for Rust programs: the time, random numbers, environment variables, the console, and object storage, passed
-to code as traits instead of reached for as globals. Code takes `&impl Clock` (or `&(impl Clock + Random)`, …), the
-program passes the system's services, and tests pass services they control. The same code runs natively, under WASI,
-and in browsers and Workers.
+Services for Rust programs: the clock, random numbers, environment variables, the console, and object storage, passed
+to code as traits instead of reached for as globals. The program passes the real ones, tests pass ones they control,
+and the same code runs natively, under WASI, and in the browser.
+
+## Why
+
+Code that calls `SystemTime::now()`, sleeps, or draws from a global random generator is hard to test: checking a
+one-hour timeout takes an hour, and random retries behave differently on every run. With loko, the code takes the clock
+as an argument, and the test decides what time it is:
+
+```rust
+use std::time::{Duration, SystemTime};
+
+use loko::Clock;
+use loko::clock::TestClock;
+
+/// Whether a session that started at `started` has expired.
+fn expired(clock: &impl Clock, started: SystemTime) -> bool {
+    clock.now() > started + Duration::from_secs(60 * 60)
+}
+
+let clock = TestClock::at_ms(0);
+let started = clock.now();
+assert!(!expired(&clock, started));
+clock.advance(Duration::from_secs(60 * 60 + 1)); // an hour passes, at once
+assert!(expired(&clock, started));
+```
+
+The program passes `StdClock`, `TokioClock`, or `JsClock` in the browser, and `expired` stays as it is. What you get:
+
+- **Tests that control time.** A test clock moves only when told, and sleeping on it returns at once, so retries,
+  timeouts, and polling loops run in tests without waiting.
+- **Random numbers that repeat in tests,** and secure ones in programs, with signatures that say which is needed.
+- **One codebase for native, WASI, and the browser.** Platforms bundle the right implementations for each, and nothing
+  requires `Send`, so services backed by JavaScript work.
+- **Storage you can swap:** memory in tests, S3, GCS, Azure, or local files in production.
+- **Tests that set environment variables and read what was printed,** without touching the process.
+- **Your own services and wrappers,** with three small macros, in the same style.
 
 ```toml
 [dependencies]
@@ -20,65 +54,30 @@ loko = { version = "0.2", features = ["tokio", "store"] }
 
 ## Guide
 
-The examples build on each other, from one service to bundles of your own services and wrappers.
+### 1. Waiting without waiting
 
-### 1. One service
-
-A function that needs the time takes a `Clock` instead of calling `SystemTime::now()`. The program passes the system
-clock; a test passes a clock it sets.
-
-```rust
-use loko::Clock;
-use loko::clock::{StdClock, TestClock};
-
-/// A log line stamped with the time.
-fn stamp(clock: &impl Clock, message: &str) -> String {
-    format!("[{}] {message}", clock.now_ms())
-}
-
-// A program: the system clock.
-let line = stamp(&StdClock, "started");
-assert!(line.ends_with("] started"));
-
-// A test: a clock that moves only when told.
-let clock = TestClock::at_ms(1_000);
-assert_eq!(stamp(&clock, "started"), "[1000] started");
-```
-
-### 2. Waiting without waiting
-
-`sleep` is a `Clock` method too. A test clock's sleep returns at once and moves the clock forward, so code that waits
-(retries, timeouts, polling) runs in tests without waiting. Random numbers come from a generator that a `Random`
-hands out (`rng()`), so the jitter is the same on every test run.
+A retry loop that waits a second between tries. Its test takes no time, because a test platform's sleeps move its
+clock instead of blocking.
 
 ```rust
 use std::time::Duration;
 
-use loko::{Clock, Random, Rng, TestPlatform};
+use loko::{Clock, TestPlatform};
 
-/// Calls `attempt` up to five times, waiting one to two seconds between tries.
-async fn retry<T, E>(
-    services: &(impl Clock + Random),
-    mut attempt: impl FnMut() -> Result<T, E>,
-) -> Result<T, E> {
-    let mut rng = services.rng();
-    let mut tries = 1;
-    loop {
-        match attempt() {
-            Err(_) if tries < 5 => {
-                let jitter = rng.next_u64() % 1_000;
-                services.sleep(Duration::from_millis(1_000 + jitter)).await;
-                tries += 1;
-            }
-            result => return result,
+/// Tries `attempt` up to three times, a second apart.
+async fn retry<T, E>(clock: &impl Clock, mut attempt: impl FnMut() -> Result<T, E>) -> Result<T, E> {
+    for _ in 1..3 {
+        if let Ok(value) = attempt() {
+            return Ok(value);
         }
+        clock.sleep(Duration::from_secs(1)).await;
     }
+    attempt()
 }
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    // A program would pass `TokioPlatform::default()`.
-    let platform = TestPlatform::new();
+    let platform = TestPlatform::new(); // TokioPlatform::default() in a program
     let mut calls = 0;
     let result = retry(&platform, || {
         calls += 1;
@@ -86,66 +85,67 @@ async fn main() {
     })
     .await;
     assert_eq!(result, Ok(3));
-    // Two waits of one to two seconds each, on the test clock: the test itself took no time.
-    assert!((2_000..4_000).contains(&platform.now_ms()));
+    assert_eq!(platform.now_ms(), 2_000, "two seconds of test time, none of real time");
 }
 ```
 
-### 3. Several services
+### 2. Random numbers that repeat
 
-A function can take each service as its own argument, or one value that is all of them. A platform is one of each
-of `Clock`, `Random`, `Env`, and `Console`: `TestPlatform` for tests, `StdPlatform` or `TokioPlatform` for programs,
-and `JsPlatform` in the browser.
+A `Random` hands out generators (`rng()`). In tests they come from a seed, so every run makes the same choices.
+
+```rust
+use loko::{Random, Rng, TestPlatform};
+
+/// Picks one of `servers` at random.
+fn pick<'a>(random: &impl Random, servers: &[&'a str]) -> &'a str {
+    servers[(random.rng().next_u64() % servers.len() as u64) as usize]
+}
+
+let servers = ["a", "b", "c"];
+assert_eq!(pick(&TestPlatform::new(), &servers), pick(&TestPlatform::new(), &servers));
+```
+
+Code that makes secrets asks for a secure generator, `fn token(random: &impl Random<Rng: CryptoRng>)`, so a seeded
+one can't be passed to it by mistake. Drawing many numbers from one `rng()` takes no locks.
+
+### 3. Several services, one platform
+
+A function can ask for several services at once. A platform is one of each of `Clock`, `Random`, `Env`, and `Console`:
+`TestPlatform` for tests, `StdPlatform` or `TokioPlatform` for programs, `JsPlatform` in the browser.
 
 ```rust
 use loko::{Console, Env, TestPlatform};
 
-/// Separate arguments: plain, and fine for two or three services.
-fn greet(env: &impl Env, console: &impl Console) -> std::io::Result<()> {
-    let name = env.var("USER").unwrap_or_else(|| "stranger".into());
-    console.print_line(&format!("Hello, {name}"))
+fn greet(services: &(impl Env + Console)) {
+    let name = services.var("USER").unwrap_or_else(|| "stranger".into());
+    services.print_line(&format!("Hello, {name}")).unwrap();
 }
 
-/// One value: handier as the list grows, and easy to store.
-fn greet_all(services: &(impl Env + Console)) -> std::io::Result<()> {
-    greet(services, services)
-}
-
-// A program would pass `StdPlatform::default()`.
 let platform = TestPlatform::new().with_var("USER", "Ada");
-greet_all(&platform).unwrap();
+greet(&platform);
 assert_eq!(platform.console.lines(), ["Hello, Ada"]);
 ```
 
 ### 4. Storage
 
-`Store` reads and writes objects by URI, with a conditional write (`put_if_absent`) for the cases where two writers
-must not overwrite each other. Tests use `MemoryStore`; programs use `ObjectStoreAdapter` over S3, GCS, Azure, or local
-files (feature `object-store`, with the backend enabled on your `object_store` dependency).
+`Store` reads and writes objects by URI, including a write that succeeds only if nothing is there yet, for writers
+that must not overwrite each other.
 
 ```rust
 use loko::store::{MemoryStore, Store};
 
-/// Writes a report unless one with that name exists.
-async fn save(store: &impl Store, name: &str, body: &str) -> loko::store::Result<bool> {
-    store.put_if_absent(&format!("memory://reports/{name}"), body.as_bytes().to_vec()).await
-}
-
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> loko::store::Result<()> {
-    // A program: ObjectStoreAdapter::from_url("s3://bucket/reports", [("aws_region", "us-east-2")])?
-    let store = MemoryStore::new();
-    assert!(save(&store, "a.txt", "first").await?);
-    assert!(!save(&store, "a.txt", "second").await?, "the first write wins");
-    Ok(())
+async fn main() {
+    let store = MemoryStore::new(); // ObjectStoreAdapter::from_url("s3://bucket/…", options)? in production
+    assert!(store.put_if_absent("memory://a.txt", b"first".to_vec()).await.unwrap());
+    assert!(!store.put_if_absent("memory://a.txt", b"second".to_vec()).await.unwrap(), "the first write wins");
 }
 ```
 
 ### 5. Bundles
 
-When code needs a store and the time together, put them in one struct with `#[loko::bundle]`: each field marked
-`#[loko::has(…)]` makes the struct that service. Generic fields let the program and its tests fill the same struct
-differently.
+When code needs a platform and a store together, put them in one struct: `#[loko::bundle]` makes it each service its
+fields hold, as marked with `#[loko::has(…)]`.
 
 ```rust
 use loko::prelude::*;
@@ -159,300 +159,123 @@ struct App<P, S> {
     store: S,
 }
 
-/// Saves a report under a name that sorts by time.
-async fn save_report(app: &(impl Store + Clock), body: &str) -> loko::store::Result<String> {
+/// Saves a report named by the time.
+async fn save_report(app: &(impl Store + Clock)) -> loko::store::Result<String> {
     let uri = format!("memory://reports/{}.txt", app.now_ms());
-    app.put(&uri, body.as_bytes().to_vec()).await?;
+    app.put(&uri, b"ok".to_vec()).await?;
     Ok(uri)
 }
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> loko::store::Result<()> {
-    // A program: App { platform: TokioPlatform::default(), store: ObjectStoreAdapter::from_url(…)? }
-    let app = App { platform: TestPlatform::new().at_ms(42), store: MemoryStore::new() };
-    assert_eq!(save_report(&app, "all good").await?, "memory://reports/42.txt");
-    assert_eq!(app.store.uris(), ["memory://reports/42.txt"]);
-    Ok(())
-}
-```
-
-`#[loko::has(Clock)]` names `HasClock` next to `Clock`, so bring both in: `loko::prelude::*` does for loko's services,
-or write the path (`#[loko::has(loko::Clock)]`).
-
-### 6. Keeping services in a struct
-
-A library type holds its services as one generic field and asks for what each method needs.
-
-```rust
-use loko::prelude::*;
-use loko::store::MemoryStore;
-
-/// Uploads files under a prefix, named by time and a random suffix.
-struct Uploader<R> {
-    services: R,
-    prefix: String,
-}
-
-impl<R: Store + Clock + Random> Uploader<R> {
-    async fn upload(&self, body: Vec<u8>) -> loko::store::Result<String> {
-        let r = &self.services;
-        let uri = format!("{}/{}-{:04x}", self.prefix, r.now_ms(), r.rng().next_u64() & 0xffff);
-        r.put(&uri, body).await?;
-        Ok(uri)
-    }
-}
-
-#[loko::bundle]
-struct Test {
-    #[loko::has(Clock, Random)]
-    platform: TestPlatform,
-    #[loko::has(Store)]
-    store: MemoryStore,
-}
-
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> loko::store::Result<()> {
-    let uploader = Uploader {
-        services: Test { platform: TestPlatform::new(), store: MemoryStore::new() },
-        prefix: "memory://uploads".into(),
-    };
-    assert_eq!(uploader.upload(b"x".to_vec()).await?, "memory://uploads/0-7e6f");
-    Ok(())
-}
-```
-
-### 7. Your own implementation of a service
-
-loko's services are ordinary traits, so you can implement one yourself: a clock on a runtime loko doesn't ship, an
-`Env` read from a config file, a `Store` over your own storage. Implement the required methods and the provided ones
-(here `now_ms`) come with it; then it goes anywhere the trait is asked for, and into bundles with `#[loko::has(Clock)]`.
-Step 11 makes the same clock as a wrapper around any other clock.
-
-```rust
-use std::future::{Future, ready};
-use std::time::{Duration, Instant, SystemTime};
-
-use loko::Clock;
-
-/// A clock that runs `speed` times faster than real time, for demos and simulations where an hour
-/// of the program's time should pass in seconds.
-struct FastClock {
-    started: (SystemTime, Instant),
-    speed: u32,
-}
-
-impl FastClock {
-    fn new(speed: u32) -> Self {
-        Self { started: (SystemTime::now(), Instant::now()), speed }
-    }
-}
-
-impl Clock for FastClock {
-    fn now(&self) -> SystemTime {
-        let (wall, steady) = self.started;
-        wall + steady.elapsed() * self.speed
-    }
-
-    fn sleep(&self, duration: Duration) -> impl Future<Output = ()> {
-        // Blocks the thread, as StdClock does; on tokio, return `tokio::time::sleep(duration / self.speed)`.
-        std::thread::sleep(duration / self.speed);
-        ready(())
-    }
-}
-
-#[tokio::main(flavor = "current_thread")]
 async fn main() {
-    let clock = FastClock::new(1_000);
-    let before = clock.now_ms();
-    clock.sleep(Duration::from_secs(2)).await; // two seconds of clock time, two milliseconds of real time
-    assert!(clock.now_ms() - before >= 2_000);
+    // TokioPlatform and an S3 store in production.
+    let app = App { platform: TestPlatform::new().at_ms(42), store: MemoryStore::new() };
+    assert_eq!(save_report(&app).await.unwrap(), "memory://reports/42.txt");
 }
 ```
 
-### 8. Your own platform
+`#[loko::has(Clock)]` names `HasClock` next to `Clock`, so bring both in (`loko::prelude::*` does). A library type can
+hold its services the same way, as one generic field: `struct Uploader<S> { services: S }` with
+`impl<S: Store + Clock> Uploader<S>`.
 
-A platform is nothing more than a `#[loko::bundle]` struct with a field for each service, which is how loko's own
-are built. Make one when your program runs somewhere loko's don't fit: a clock of your own (step 7), a different
-generator, variables from a file. This one is the real system with a fixed random seed, for reproducing a run whose
-random choices led to a bug.
+### 6. Your own service
 
-```rust
-use loko::clock::StdClock;
-use loko::console::StdConsole;
-use loko::env::SystemEnv;
-use loko::prelude::*;
-use loko::random::SeededRandom;
-
-/// The system's clock, environment, and console, with random numbers from a fixed seed.
-#[loko::bundle]
-#[derive(Clone, Debug)]
-pub struct ReplayPlatform {
-    #[loko::has(Clock)]
-    pub clock: StdClock,
-    #[loko::has(Random)]
-    pub random: SeededRandom,
-    #[loko::has(Env)]
-    pub env: SystemEnv,
-    #[loko::has(Console)]
-    pub console: StdConsole,
-}
-
-impl ReplayPlatform {
-    /// The run of `seed`: the same random choices every time.
-    pub fn new(seed: u64) -> Self {
-        Self { clock: StdClock, random: SeededRandom::new(seed), env: SystemEnv, console: StdConsole }
-    }
-}
-
-/// Picks one of `servers` at random.
-fn pick<'a>(services: &impl Random, servers: &[&'a str]) -> &'a str {
-    servers[(services.rng().next_u64() % servers.len() as u64) as usize]
-}
-
-// A program logs its seed, then a later run passes the same one to see the same choices.
-let servers = ["a", "b", "c"];
-assert_eq!(pick(&ReplayPlatform::new(7), &servers), pick(&ReplayPlatform::new(7), &servers));
-```
-
-A platform can hold more than the four, such as a `Store` or services of your own; at that point it's a bundle
-(step 5), and the two are the same thing. Give it public fields so tests can reach the parts. If other crates use it,
-mark it `#[non_exhaustive]` and give it a constructor, so adding a service later isn't a breaking change.
-
-### 9. Your own service
-
-`#[loko::service]` makes any trait a service, so a program's own dependencies (a mailer, a payment client, a feature
-flag service) work like loko's: a real implementation for the program, a test one that records, and a place in the
-bundle. An implementation can use other services.
+`#[loko::service]` makes any trait a service, so your own dependencies (a mailer, a payment client) work like loko's:
+a real implementation for the program, a test one that records, and a field in the bundle.
 
 ```rust
-use std::future::{Future, ready};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use loko::prelude::*;
 
 #[loko::service]
 trait Mailer {
-    /// Sends `body` to `to`.
-    fn send(&self, to: &str, body: &str) -> impl Future<Output = std::io::Result<()>>;
+    fn send(&self, to: &str, body: &str);
 }
 
-/// For tests: keeps what would have been sent.
-#[derive(Clone, Default)]
+/// For tests: remembers what was sent.
+#[derive(Default)]
 struct TestMailer {
-    sent: Arc<Mutex<Vec<(String, String)>>>,
+    sent: Mutex<Vec<String>>,
 }
 
 impl Mailer for TestMailer {
-    fn send(&self, to: &str, body: &str) -> impl Future<Output = std::io::Result<()>> {
-        self.sent.lock().unwrap().push((to.into(), body.into()));
-        ready(Ok(()))
+    fn send(&self, to: &str, body: &str) {
+        self.sent.lock().unwrap().push(format!("{to}: {body}"));
     }
+}
+
+fn report_backup(app: &(impl Mailer + Env)) {
+    let to = app.var("ADMIN").unwrap_or_else(|| "root".into());
+    app.send(&to, "backup finished");
 }
 
 #[loko::bundle]
-struct App<M> {
-    #[loko::has(Clock, Random, Env, Console)]
+struct App {
+    #[loko::has(Env)]
     platform: TestPlatform,
     #[loko::has(Mailer)]
-    mailer: M,
+    mailer: TestMailer,
 }
 
-/// Tells the administrator a backup finished.
-async fn report_backup(app: &(impl Mailer + Env + Clock)) -> std::io::Result<()> {
-    let to = app.var("ADMIN").unwrap_or_else(|| "root@localhost".into());
-    app.send(&to, &format!("backup finished at {}", app.now_ms())).await
-}
-
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> std::io::Result<()> {
-    let mailer = TestMailer::default();
-    let app = App { platform: TestPlatform::new().with_var("ADMIN", "ops@example.com"), mailer: mailer.clone() };
-    report_backup(&app).await?;
-    assert_eq!(*mailer.sent.lock().unwrap(), [("ops@example.com".into(), "backup finished at 0".into())]);
-    Ok(())
-}
+let app = App { platform: TestPlatform::new().with_var("ADMIN", "ops"), mailer: TestMailer::default() };
+report_backup(&app);
+assert_eq!(*app.mailer.sent.lock().unwrap(), ["ops: backup finished"]);
 ```
 
-### 10. State in your own services
+### 7. Your own implementation and platform
 
-Every service method takes `&self`, never `&mut self`. That's what lets one value be several services at once
-(`greet(services, services)` in step 3), lets clones share state (a test keeps one `TestClock` and advances the one
-the code holds), and lets services be used across `.await`. A service whose state changes keeps it behind a lock or
-an atomic, as `TestMailer` above does with its `Mutex`. Three rules keep that safe:
-
-- **Lock only for the synchronous part.** Don't hold a `std::sync::Mutex` guard or a `RefCell` borrow across an
-  `.await`. While the task waits, another task can use the same service and try to take the lock: a `Mutex` then
-  blocks that thread for good (on a single-threaded runtime or in the browser, the whole program stops), and a
-  `RefCell` panics. Clippy warns about both (`await_holding_lock`, `await_holding_refcell_ref`). If state really must
-  stay locked while waiting, use an async mutex such as `tokio::sync::Mutex`.
-- **Counters are atomics,** which need no lock.
-- **Clones share state.** Cloning a service that holds an `Arc` gives a second handle to the same state, not a copy.
+loko's services are ordinary traits, so you can implement one: write the required methods, and the provided ones
+(`now_ms`) come with it. A platform is a bundle with one field per service, which is how loko's own are built.
 
 ```rust
-use std::sync::Mutex;
-use std::time::Duration;
+use std::future::{Future, ready};
+use std::time::{Duration, SystemTime};
 
-use loko::{Clock, TestPlatform};
-
-/// Remembers when each job ran.
-struct Jobs {
-    runs: Mutex<Vec<i64>>,
-}
-
-impl Jobs {
-    async fn run(&self, clock: &impl Clock) {
-        // Wait first, holding nothing; then lock, change, and unlock in one statement.
-        clock.sleep(Duration::from_secs(1)).await;
-        self.runs.lock().unwrap().push(clock.now_ms());
-        // Not this: `let mut runs = self.runs.lock().unwrap(); clock.sleep(…).await; runs.push(…);`
-    }
-}
-
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
-    let jobs = Jobs { runs: Mutex::new(vec![]) };
-    let platform = TestPlatform::new();
-    jobs.run(&platform).await;
-    jobs.run(&platform).await;
-    assert_eq!(*jobs.runs.lock().unwrap(), [1_000, 2_000]);
-}
-```
-
-A lock taken and released at once costs tens of nanoseconds, which matters only in hot loops. That's why `Random`
-hands out generators instead of numbers: `services.rng()` locks at most once, and drawing from the generator it
-returns takes no lock at all, however many numbers you draw. The system implementations (`StdClock`, `OsRandom`,
-`SystemEnv`, `StdConsole`) hold no state and take no lock.
-
-### 11. Wrappers
-
-A wrapper holds one implementation of a service and is one itself, changing some methods. `#[loko::wraps(field:
-Type)]` on its `impl` forwards every method it doesn't write to the field.
-
-```rust
+use loko::console::TestConsole;
+use loko::env::MapEnv;
 use loko::prelude::*;
+use loko::random::SeededRandom;
 
-/// Shouts standard output; standard error passes as it is.
-struct Shouting<C> {
-    inner: C,
-}
+/// A clock stopped at one moment, for output that must be the same on every run.
+struct FrozenClock(SystemTime);
 
-#[loko::wraps(inner: C)]
-impl<C: Console> Console for Shouting<C> {
-    fn print_line(&self, line: &str) -> std::io::Result<()> {
-        self.inner.print_line(&line.to_uppercase())
+impl Clock for FrozenClock {
+    fn now(&self) -> SystemTime {
+        self.0
+    }
+
+    fn sleep(&self, _: Duration) -> impl Future<Output = ()> {
+        ready(())
     }
 }
 
-let platform = TestPlatform::new();
-let console = Shouting { inner: platform.console.clone() };
-console.print_line("done").unwrap();
-console.print_error_line("as it is").unwrap();
-assert_eq!(platform.console.lines(), ["DONE"]);
-assert_eq!(platform.console.error_lines(), ["as it is"]);
+/// Everything fixed: for snapshot tests.
+#[loko::bundle]
+struct SnapshotPlatform {
+    #[loko::has(Clock)]
+    clock: FrozenClock,
+    #[loko::has(Random)]
+    random: SeededRandom,
+    #[loko::has(Env)]
+    env: MapEnv,
+    #[loko::has(Console)]
+    console: TestConsole,
+}
+
+let platform = SnapshotPlatform {
+    clock: FrozenClock(loko::clock::from_ms(1_700_000_000_000).unwrap()),
+    random: SeededRandom::new(1),
+    env: MapEnv::new(),
+    console: TestConsole::new(),
+};
+assert_eq!(platform.now_ms(), 1_700_000_000_000);
 ```
 
-Step 7's fast clock works better as a wrapper: it speeds up whatever clock it holds, so on tokio or in the browser its
-sleeps stay asynchronous instead of blocking the thread.
+### 8. Wrappers
+
+A wrapper holds one implementation and is one itself, changing some methods. `#[loko::wraps(field: Type)]` forwards
+every method it doesn't write to the field. This one speeds up any clock, test or real:
 
 ```rust
 use std::future::Future;
@@ -461,18 +284,11 @@ use std::time::{Duration, SystemTime};
 use loko::clock::{TestClock, to_ms};
 use loko::prelude::*;
 
-/// Any clock, running `speed` times faster from the moment the wrapper is made.
+/// Any clock, running `speed` times faster from when the wrapper is made.
 struct Faster<C> {
     inner: C,
     started: SystemTime,
     speed: u32,
-}
-
-impl<C: Clock> Faster<C> {
-    fn new(inner: C, speed: u32) -> Self {
-        let started = inner.now();
-        Self { inner, started, speed }
-    }
 }
 
 #[loko::wraps(inner: C)]
@@ -492,53 +308,44 @@ impl<C: Clock> Clock for Faster<C> {
     }
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
-    // Over a test clock here; over TokioClock, StdClock, or JsClock in a program.
-    let real = TestClock::at_ms(0);
-    let fast = Faster::new(real.clone(), 60);
-    real.advance(Duration::from_secs(1));
-    assert_eq!(fast.now_ms(), 60_000, "a second of the inner clock is a minute");
-    fast.sleep(Duration::from_secs(60)).await;
-    assert_eq!((real.now_ms(), fast.now_ms()), (2_000, 120_000), "a minute's sleep is a second of the inner clock");
-}
+let real = TestClock::at_ms(0);
+let fast = Faster { inner: real.clone(), started: real.now(), speed: 60 };
+real.advance(Duration::from_secs(1));
+assert_eq!(fast.now_ms(), 60_000, "a second of the inner clock is a minute");
 ```
 
-Wrappers stack, and loko has some ready-made: `OffsetClock` (a clock ahead or behind another, for clock-skew tests),
+loko has some ready-made, and they stack: `OffsetClock` (a clock ahead or behind another, for clock-skew tests),
 `CountingStore`, `ReadOnlyStore`, and `PrefixedStore`.
 
 ```rust
-use std::time::Duration;
-
-use loko::Clock;
-use loko::clock::{OffsetClock, TestClock};
 use loko::store::{CountingStore, MemoryStore, PrefixedStore, ReadOnlyStore, Store};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    // A store that counts its calls, never writes, and stays under one prefix.
-    let memory = MemoryStore::new();
-    memory.put("memory://tenant-a/report", b"x".to_vec()).await.unwrap();
-    let store = CountingStore::new(ReadOnlyStore::new(PrefixedStore::new(memory, "memory://tenant-a/")));
-    assert!(store.get("memory://tenant-a/report").await.unwrap().is_some());
+    // Counts its calls, never writes, and stays inside one tenant's data.
+    let store = CountingStore::new(ReadOnlyStore::new(PrefixedStore::new(MemoryStore::new(), "memory://tenant-a/")));
     assert!(store.get("memory://tenant-b/report").await.is_err(), "outside the prefix");
-    assert!(store.put("memory://tenant-a/new", vec![]).await.is_err(), "read-only");
-    assert_eq!((store.counts().get, store.counts().put), (2, 1));
-
-    // A second machine whose clock runs five seconds behind.
-    let clock = TestClock::at_ms(10_000);
-    let late = OffsetClock::behind(clock.clone(), Duration::from_secs(5));
-    assert_eq!(late.now_ms(), 5_000);
+    assert!(store.put("memory://tenant-a/report", vec![]).await.is_err(), "read-only");
+    assert_eq!(store.counts().total(), 2);
 }
 ```
 
-A wrapper keeps the inner service's associated types, and a provided method it doesn't write (such as `now_ms`)
-forwards to the inner one too, so write it when it depends on a method the wrapper changes.
+### 9. Services with state
 
-### 12. In the browser
+Every service method takes `&self`, so one value can be several services (`greet(&platform)` above), clones share
+state (a test advances the clock it handed to the code), and services can be used across `.await`. A service whose
+state changes keeps it behind a lock or an atomic, as `TestMailer` does. Three rules:
+
+- **Lock only for the synchronous part.** Never hold a `std::sync::Mutex` guard or a `RefCell` borrow across `.await`:
+  another task using the service meanwhile would deadlock or panic. Clippy warns about both (`await_holding_lock`,
+  `await_holding_refcell_ref`). If state must stay locked while waiting, use an async mutex (`tokio::sync::Mutex`).
+- **Counters are atomics,** which need no lock.
+- **Clones share state.** Cloning a service that holds an `Arc` gives a second handle to the same state.
+
+### 10. In the browser
 
 With feature `js` on `wasm32-unknown-unknown`, `JsPlatform` uses `Date.now`, `setTimeout`, `crypto.getRandomValues`,
-and the JavaScript console. The `retry` from step 2 runs unchanged:
+and the JavaScript console. The `retry` from step 1 runs unchanged:
 
 ```rust,ignore
 use wasm_bindgen::prelude::*;
@@ -550,66 +357,19 @@ pub async fn fetch_with_retries() -> Result<u32, JsValue> {
 }
 ```
 
-Futures aren't required to be `Send`, so a service can wrap JavaScript promises, as `JsClock` does.
-
 ## Sans-I/O
 
-Libraries that do no I/O of their own ("sans-I/O") come in two shapes, and loko fits both:
+Libraries that do no I/O of their own come in two shapes, and loko fits both:
 
-- **State machines driven by the caller.** Network protocols such as quinn-proto (QUIC), str0m (WebRTC), and smoltcp
-  (TCP/IP) take the time as an argument, return what to send and when to wake them next, and never sleep. The state
-  machine needs no services; the program around it uses a `Clock` to wait for the deadline, and a test uses a
-  `TestClock` to run through hours of timers at once.
-- **Libraries that call traits the application implements.** delta-kernel-rs's `Engine` and rustls's time and
-  randomness providers work this way: the library runs a chain of steps that depend on each other and calls back for
-  each read, write, or timestamp. That's the shape loko's services serve: the library takes
-  `&(impl Store + Clock + Random)`, and the application chooses the implementations.
+- **State machines driven by the caller** (quinn-proto, str0m, smoltcp): the time comes in as an argument, the next
+  deadline goes out, and the library never sleeps. The program around it waits with a `Clock`, and its tests run
+  through hours of timers at once with a `TestClock`.
+- **Libraries that call traits the application implements** (delta-kernel-rs's `Engine`, rustls's time and randomness
+  providers): the library runs a chain of dependent steps and calls back for each read, write, or timestamp. That's the
+  shape loko's services serve: the library takes `&(impl Store + Clock + Random)`, and the application chooses.
 
-Choose the first for a protocol that reacts to packets and timers, the second for a sequence of reads and writes where
-each depends on the last. The first, with loko at the edge:
-
-```rust
-use std::time::{Duration, SystemTime};
-
-use loko::{Clock, TestPlatform};
-
-/// Sends a heartbeat every 30 seconds. It knows nothing of clocks or sockets: the time comes in as an
-/// argument, and the next deadline goes out.
-struct Heartbeat {
-    next: SystemTime,
-}
-
-impl Heartbeat {
-    fn deadline(&self) -> SystemTime {
-        self.next
-    }
-
-    /// Whether to send a heartbeat at `now`.
-    fn on_time(&mut self, now: SystemTime) -> bool {
-        if now < self.next {
-            return false;
-        }
-        self.next = now + Duration::from_secs(30);
-        true
-    }
-}
-
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
-    // The edge owns the waiting: TokioPlatform in a program, TestPlatform here.
-    let clock = TestPlatform::new();
-    let mut heartbeat = Heartbeat { next: clock.now() };
-    let mut sent = 0;
-    for _ in 0..3 {
-        let wait = heartbeat.deadline().duration_since(clock.now()).unwrap_or_default();
-        clock.sleep(wait).await;
-        if heartbeat.on_time(clock.now()) {
-            sent += 1;
-        }
-    }
-    assert_eq!((sent, clock.now_ms()), (3, 60_000), "three heartbeats in a minute of test time");
-}
-```
+Choose the first for a protocol reacting to packets and timers, the second for reads and writes that depend on each
+other.
 
 ## Related crates
 
