@@ -352,6 +352,12 @@ pub async fn fetch_with_retries() -> Result<u32, JsValue> {
 
 Futures aren't required to be `Send`, so a resource can wrap JavaScript promises, as `JsClock` does.
 
+## Related crates
+
+[COMPARISON.md](COMPARISON.md) compares loko with forwarding macros (delegate, ambassador), dependency-injection crates
+(fundle, shaku, nject, service-builder, dill, dependency-injector, ferrous-di, reinhardt-di), tower, and cap-std: what
+each is for, when to use which, and what loko does differently.
+
 ## Reference
 
 ### Resources
