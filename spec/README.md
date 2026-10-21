@@ -1,6 +1,6 @@
 # Specs
 
-loko's design, laid out like lakekit's, Timelake's, and lakeglass's. Start here, people and agents alike.
+loko's design. Start here, people and agents alike.
 
 - **Specs** (`NNNN-name.md`): one feature each, with the same template ([TEMPLATE.md](TEMPLATE.md)). A spec says what
   the feature does and why, what is still open (as GitHub issues), how far it is built, and the releases that changed
@@ -45,4 +45,4 @@ loko's design, laid out like lakekit's, Timelake's, and lakeglass's. Start here,
 
 | Milestone | Status |
 |---|---|
-| [0.2: Resources for the polythings projects](milestones/v0-2.md) | In progress |
+| [0.2: First release](milestones/v0-2.md) | In progress |

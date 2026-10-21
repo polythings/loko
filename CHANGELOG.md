@@ -19,9 +19,8 @@ unrelated 0.1.0 from 2022 (task scripting), by the same owner.
   `JsConsole` (feature `js`).
 - `loko-store`: the `Store` resource (objects by URI, with put-if-absent, multipart uploads, and prefix listing),
   `MemoryStore`, an error type, and the wrappers `CountingStore` (counts calls), `ReadOnlyStore` (refuses writes), and
-  `PrefixedStore` (passes on only URIs under a prefix). It started as lakekit's `Store`.
-- `loko-object-store`: a `Store` over an `object_store` client, from a client or a URL. It started as
-  `lakekit-object-store`.
+  `PrefixedStore` (passes on only URIs under a prefix).
+- `loko-object-store`: a `Store` over an `object_store` client, from a client or a URL.
 - `loko-macros`: `#[resource]`, which adds a `HasX` trait to a resource trait `X` and makes every `HasX` an `X`, and
   `#[derive(Provides)]`, which makes a struct each resource its fields provide, and `#[wraps]`, which makes a wrapper
   that replaces some of a resource's methods and forwards the rest.

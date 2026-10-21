@@ -15,8 +15,7 @@ issues: [6]
 ## Summary
 
 Objects by absolute URI. Code that reads and writes files in object storage takes a `Store`, so the same code works
-over S3, a local directory, memory, or a JavaScript binding. It started as lakekit's `Store`, where table formats
-read and write through it.
+over S3, a local directory, memory, or a JavaScript binding.
 
 ## Design
 
@@ -44,7 +43,7 @@ read and write through it.
 
 | ID | Decision | Status |
 |---|---|---|
-| D13 | `Store` and the `object_store` adapter moved from lakekit to loko, so any project can use them; lakekit keeps its own error type, converting from `loko_store::Error`. | Accepted |
+| D13 | `Store` and the `object_store` adapter are loko crates of their own, so any library can take a store without a storage client; a library with its own error type converts from `loko_store::Error`. | Accepted |
 
 ## Open questions and issues
 
@@ -52,6 +51,6 @@ read and write through it.
 
 ## History
 
-- 2026-10-20: built for 0.2. Moved from lakekit (`lakekit-core`'s `Store` and `MemoryStore`, and `lakekit-object-store`).
-- 2026-10-21: review fixes from lakekit#12: `from_url` keeps the port, empty and past-the-end ranges read as no bytes,
+- 2026-10-20: built for 0.2.
+- 2026-10-21: review fixes: `from_url` keeps the port, empty and past-the-end ranges read as no bytes,
   and listing starts from an offset. Wrappers `CountingStore`, `ReadOnlyStore`, and `PrefixedStore` added.

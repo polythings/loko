@@ -2,8 +2,7 @@
 
 loko: resources for Rust programs (`Clock`, `Random`, `Env`, `Console`, `Store`) passed to code as traits, with test,
 system, and JavaScript implementations. One crate per resource (`crates/loko-<resource>`), the derive macros
-(`crates/loko-macros`), and the `loko` crate, which re-exports them and adds the platforms. The polythings projects
-(Timelake, lakekit, lakeglass) use it.
+(`crates/loko-macros`), and the `loko` crate, which re-exports them and adds the platforms.
 
 ## Before changing code
 
@@ -19,6 +18,8 @@ system, and JavaScript implementations. One crate per resource (`crates/loko-<re
   `#[expect(..., reason = "...")]` only when the tool is genuinely wrong.
 - **Keep things in sync:** a change in behaviour updates its spec (status, design, history), the crate's README, the
   tests, and `CHANGELOG.md` (under `Unreleased`) in the same commit.
+- **The README's examples are doctests** (`ReadmeExamples` in `crates/loko/src/lib.rs`, with features `store` and
+  `tokio`). Keep them running: `cargo test -p loko --all-features --doc`.
 - **Everything builds for WASM.** Every crate builds for `wasm32-unknown-unknown` and `wasm32-wasip2`. JavaScript
   implementations are gated to `wasm32-unknown-unknown` and feature `js`; system ones to targets that have a system.
   CI checks all three targets.

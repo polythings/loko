@@ -64,6 +64,11 @@ pub use loko_store::{HasStore, Store};
 
 mod platform;
 
+/// The repository README's examples, run as doctests.
+#[cfg(all(doctest, feature = "store", feature = "tokio"))]
+#[doc = include_str!("../../../README.md")]
+pub struct ReadmeExamples;
+
 /// The resources, the `Has` traits that `#[derive(Provides)]` and `#[wraps]` name next to them, the
 /// macros, and the platforms.
 pub mod prelude {
