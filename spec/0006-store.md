@@ -2,7 +2,7 @@
 number: 6
 title: Store
 status: done
-updated: 2026-10-20
+updated: 2026-10-21
 versions: [unreleased]
 related: [1]
 issues: [6]
@@ -10,7 +10,7 @@ issues: [6]
 
 # 6. Store
 
-**Done** · updated 2026-10-20 · versions unreleased · milestone: [0.2](milestones/v0-2.md)
+**Done** · updated 2026-10-21 · versions unreleased · milestone: [0.2](milestones/v0-2.md)
 
 ## Summary
 
@@ -28,7 +28,9 @@ read and write through it.
   Libraries with their own error type convert from it.
 - **`MemoryStore`:** objects in memory, for tests. Clones share the objects.
 - **`ObjectStoreAdapter`** (`loko-object-store`): a `Store` over any `object_store` client, from a client and a root
-  URI or from a URL with options. Put-if-absent is `PutMode::Create`. The crate enables no backends; the application
+  URI or from a URL with options (the root keeps the URL's port and drops any credentials). Put-if-absent is
+  `PutMode::Create`. An empty range, or one starting past the end, reads as no bytes, as in `MemoryStore`. Listing a
+  prefix lists its directory from an offset just before the prefix, so `…/metadata/v` skips the manifests before it. The crate enables no backends; the application
   turns on the ones it needs on its own `object_store` dependency.
 - **Not in the platforms:** a program bundles a store with a platform ([spec 7](0007-platforms.md)).
 
@@ -45,3 +47,5 @@ read and write through it.
 ## History
 
 - 2026-10-20: built for 0.2. Moved from lakekit (`lakekit-core`'s `Store` and `MemoryStore`, and `lakekit-object-store`).
+- 2026-10-21: review fixes from lakekit#12: `from_url` keeps the port, empty and past-the-end ranges read as no bytes,
+  and listing starts from an offset.

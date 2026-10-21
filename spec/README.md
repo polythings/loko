@@ -38,7 +38,7 @@ loko's design, laid out like lakekit's, Timelake's, and lakeglass's. Start here,
 | 3 | [Random](0003-random.md) | Done | 2026-10-20 |
 | 4 | [Env](0004-env.md) | Done | 2026-10-20 |
 | 5 | [Console](0005-console.md) | Done | 2026-10-20 |
-| 6 | [Store](0006-store.md) | Done | 2026-10-20 |
+| 6 | [Store](0006-store.md) | Done | 2026-10-21 |
 | 7 | [Platforms](0007-platforms.md) | Done | 2026-10-20 |
 
 ## Milestones

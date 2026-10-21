@@ -63,11 +63,7 @@ impl ObjectStoreAdapter {
         V: Into<String>,
     {
         let parsed = Url::parse(url).map_err(|e| Error::Invalid(format!("{url}: {e}")))?;
-        let root = match parsed.host_str().filter(|h| !h.is_empty()) {
-            Some(host) => format!("{}://{host}/", parsed.scheme()),
-            // `file:///data/t`: a file system rooted at `/`.
-            None => format!("{}:///", parsed.scheme()),
-        };
+        let root = root_of(&parsed);
         let root_url = Url::parse(&root).map_err(|e| Error::Invalid(format!("{root}: {e}")))?;
         let (store, _) = object_store::parse_url_opts(&root_url, options).map_err(store_error)?;
         Ok(Self::new(Arc::from(store), root))
@@ -85,6 +81,31 @@ impl ObjectStoreAdapter {
     fn uri(&self, path: &Path) -> String {
         format!("{}{path}", self.root)
     }
+}
+
+/// The root of `url`: its scheme, host, and port (`http://localhost:9000/`), without the path or
+/// credentials. `file:///data/t` gives `file:///`, a file system rooted at `/`.
+fn root_of(url: &Url) -> String {
+    match (url.host_str().filter(|h| !h.is_empty()), url.port()) {
+        (Some(host), Some(port)) => format!("{}://{host}:{port}/", url.scheme()),
+        (Some(host), None) => format!("{}://{host}/", url.scheme()),
+        (None, _) => format!("{}:///", url.scheme()),
+    }
+}
+
+/// An offset for listing directory `dir` that skips objects sorting before `name`, the start of the
+/// object names wanted. `object_store` lists the objects after the offset, so the offset is `name`
+/// with its last character one lower (`v` → `u`), which still keeps an object named exactly `name`.
+/// Only for letters and digits, whose predecessor is a letter or digit that paths keep as it is.
+fn list_offset(dir: &str, name: &str) -> Option<Path> {
+    let last = name.chars().next_back()?;
+    if !last.is_ascii_alphanumeric() || matches!(last, '0' | 'A' | 'a') {
+        return None;
+    }
+    let lower = char::from(u8::try_from(last).ok()? - 1);
+    let start = &name[..name.len() - 1];
+    let offset = if dir.is_empty() { format!("{start}{lower}") } else { format!("{dir}/{start}{lower}") };
+    Path::parse(offset).ok()
 }
 
 /// A multipart upload through `object_store`.
@@ -117,8 +138,20 @@ impl Store for ObjectStoreAdapter {
     }
 
     async fn get_range(&self, uri: &str, start: u64, len: u64) -> Result<Vec<u8>> {
-        let range = start..start.saturating_add(len);
-        Ok(self.store.get_range(&self.path(uri)?, range).await.map_err(store_error)?.to_vec())
+        // `object_store` rejects empty ranges and ranges starting past the end, which a `Store`
+        // answers with no bytes (as `MemoryStore` does) when the object exists.
+        let path = self.path(uri)?;
+        if len == 0 {
+            return self.store.head(&path).await.map(|_| Vec::new()).map_err(store_error);
+        }
+        match self.store.get_range(&path, start..start.saturating_add(len)).await {
+            Ok(bytes) => Ok(bytes.to_vec()),
+            Err(e @ object_store::Error::NotFound { .. }) => Err(store_error(e)),
+            Err(e) => match self.store.head(&path).await {
+                Ok(meta) if start >= meta.size => Ok(Vec::new()),
+                _ => Err(store_error(e)),
+            },
+        }
     }
 
     async fn exists(&self, uri: &str) -> Result<bool> {
@@ -148,14 +181,18 @@ impl Store for ObjectStoreAdapter {
 
     fn list(&self, prefix: &str) -> impl Future<Output = Result<Vec<Listed>>> {
         // `object_store` lists by directory; loko by string prefix (`…/metadata/v`). List the
-        // directory the prefix is in and keep what starts with it.
-        let relative = prefix.strip_prefix(&self.root).map(|rest| rest.rsplit_once('/').map_or("", |(dir, _)| dir));
+        // directory the prefix is in, from just before the prefix, and keep what starts with it.
+        let split = prefix.strip_prefix(&self.root).map(|rest| rest.rsplit_once('/').unwrap_or(("", rest)));
         async move {
-            let relative =
-                relative.ok_or_else(|| Error::Invalid(format!("{prefix} is outside this store ({})", self.root)))?;
+            let (relative, name) =
+                split.ok_or_else(|| Error::Invalid(format!("{prefix} is outside this store ({})", self.root)))?;
             let dir = Path::parse(relative).map_err(|e| Error::Invalid(format!("{prefix}: {e}")))?;
             let dir = (!relative.is_empty()).then_some(&dir);
-            let objects: Vec<_> = self.store.list(dir).try_collect().await.map_err(store_error)?;
+            let listing = match list_offset(relative, name) {
+                Some(offset) => self.store.list_with_offset(dir, &offset),
+                None => self.store.list(dir),
+            };
+            let objects: Vec<_> = listing.try_collect().await.map_err(store_error)?;
             Ok(objects
                 .into_iter()
                 .map(|o| Listed { uri: self.uri(&o.location), size: o.size })
@@ -228,6 +265,48 @@ mod tests {
         );
         assert_eq!(store.list("memory://t/metadata/s").await.unwrap()[0].size, 3);
         assert_eq!(store.list("memory://t").await.unwrap().len(), 5, "a prefix right under the root");
+    }
+
+    #[tokio::test]
+    async fn empty_and_past_the_end_ranges_are_empty() {
+        let store = adapter();
+        store.put("memory://t/a", b"abc".to_vec()).await.unwrap();
+        assert_eq!(store.get_range("memory://t/a", 1, 0).await.unwrap(), b"");
+        assert_eq!(store.get_range("memory://t/a", 3, 2).await.unwrap(), b"");
+        assert_eq!(store.get_range("memory://t/a", 9, 2).await.unwrap(), b"");
+        assert_eq!(store.get_range("memory://t/a", 1, 10).await.unwrap(), b"bc", "cut at the end");
+        assert!(matches!(store.get_range("memory://t/missing", 0, 0).await, Err(Error::NotFound(_))));
+        assert!(matches!(store.get_range("memory://t/missing", 0, 2).await, Err(Error::NotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn listing_from_an_offset_keeps_the_exact_prefix() {
+        let store = adapter();
+        for name in ["snap-1.avro", "u9", "v", "v1.metadata.json", "w"] {
+            store.put(&format!("memory://t/metadata/{name}"), vec![]).await.unwrap();
+        }
+        let mut listed: Vec<String> =
+            store.list("memory://t/metadata/v").await.unwrap().into_iter().map(|o| o.uri).collect();
+        listed.sort();
+        assert_eq!(listed, ["memory://t/metadata/v", "memory://t/metadata/v1.metadata.json"]);
+    }
+
+    #[test]
+    fn offsets_sort_just_before_the_prefix() {
+        assert_eq!(list_offset("t/metadata", "v").map(|p| p.to_string()).as_deref(), Some("t/metadata/u"));
+        assert_eq!(list_offset("", "t").map(|p| p.to_string()).as_deref(), Some("s"));
+        assert_eq!(list_offset("t", "snap-9").map(|p| p.to_string()).as_deref(), Some("t/snap-8"));
+        assert!(list_offset("t", "").is_none(), "a whole directory");
+        assert!(list_offset("t", "a").is_none() && list_offset("t", "x-").is_none(), "no safe predecessor");
+    }
+
+    #[test]
+    fn roots_keep_the_port_and_drop_credentials() {
+        let root = |url: &str| root_of(&Url::parse(url).unwrap());
+        assert_eq!(root("http://localhost:9000/bucket/t"), "http://localhost:9000/");
+        assert_eq!(root("https://user:secret@example.com:443/t"), "https://example.com/", "443 is https's own");
+        assert_eq!(root("s3://bucket/warehouse/t"), "s3://bucket/");
+        assert_eq!(root("file:///data/t"), "file:///");
     }
 
     #[tokio::test]
