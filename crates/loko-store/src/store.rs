@@ -38,65 +38,65 @@ pub trait Store {
 }
 
 /// A type that holds a [`Store`], and so is one: `#[loko::bundle]` implements this for a field,
-/// and `#[loko::wraps]` for a wrapper that changes some methods. It's what `#[loko::resource]`
+/// and `#[loko::wraps]` for a wrapper that changes some methods. It's what `#[loko::service]`
 /// generates, written out so this crate needs no macros.
 pub trait HasStore {
-    /// The resource held.
+    /// The service held.
     type Store: Store;
 
     /// The [`Store`] this holds.
     fn store(&self) -> &Self::Store;
 
-    /// Forwards [`Store::get`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    /// Forwards [`Store::get`] to the held service; a `#[loko::wraps]` implementation may replace it.
     #[doc(hidden)]
     #[inline]
     fn wrapped_get(&self, uri: &str) -> impl Future<Output = Result<Option<Vec<u8>>>> {
         self.store().get(uri)
     }
 
-    /// Forwards [`Store::get_range`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    /// Forwards [`Store::get_range`] to the held service; a `#[loko::wraps]` implementation may replace it.
     #[doc(hidden)]
     #[inline]
     fn wrapped_get_range(&self, uri: &str, start: u64, len: u64) -> impl Future<Output = Result<Vec<u8>>> {
         self.store().get_range(uri, start, len)
     }
 
-    /// Forwards [`Store::exists`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    /// Forwards [`Store::exists`] to the held service; a `#[loko::wraps]` implementation may replace it.
     #[doc(hidden)]
     #[inline]
     fn wrapped_exists(&self, uri: &str) -> impl Future<Output = Result<bool>> {
         self.store().exists(uri)
     }
 
-    /// Forwards [`Store::put`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    /// Forwards [`Store::put`] to the held service; a `#[loko::wraps]` implementation may replace it.
     #[doc(hidden)]
     #[inline]
     fn wrapped_put(&self, uri: &str, bytes: Vec<u8>) -> impl Future<Output = Result<()>> {
         self.store().put(uri, bytes)
     }
 
-    /// Forwards [`Store::put_if_absent`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    /// Forwards [`Store::put_if_absent`] to the held service; a `#[loko::wraps]` implementation may replace it.
     #[doc(hidden)]
     #[inline]
     fn wrapped_put_if_absent(&self, uri: &str, bytes: Vec<u8>) -> impl Future<Output = Result<bool>> {
         self.store().put_if_absent(uri, bytes)
     }
 
-    /// Forwards [`Store::upload`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    /// Forwards [`Store::upload`] to the held service; a `#[loko::wraps]` implementation may replace it.
     #[doc(hidden)]
     #[inline]
     fn wrapped_upload(&self, uri: &str) -> impl Future<Output = Result<<Self::Store as Store>::Upload>> {
         self.store().upload(uri)
     }
 
-    /// Forwards [`Store::list`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    /// Forwards [`Store::list`] to the held service; a `#[loko::wraps]` implementation may replace it.
     #[doc(hidden)]
     #[inline]
     fn wrapped_list(&self, prefix: &str) -> impl Future<Output = Result<Vec<Listed>>> {
         self.store().list(prefix)
     }
 
-    /// Forwards [`Store::delete`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    /// Forwards [`Store::delete`] to the held service; a `#[loko::wraps]` implementation may replace it.
     #[doc(hidden)]
     #[inline]
     fn wrapped_delete(&self, uris: &[String]) -> impl Future<Output = Result<()>> {

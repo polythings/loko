@@ -28,7 +28,7 @@ and skip the waits.
 - **`StdClock`:** `SystemTime::now`, and a `sleep` that blocks the thread before returning a ready future: for
   programs without an async runtime (native and WASI).
 - **`TokioClock`** (feature `tokio`, native): `SystemTime::now` and `tokio::time::sleep`.
-- **`OffsetClock`:** a wrapper ([spec 1](0001-resources.md)): another clock, `ahead` or `behind` by a fixed
+- **`OffsetClock`:** a wrapper ([spec 1](0001-services.md)): another clock, `ahead` or `behind` by a fixed
   `Duration`, for testing code against clock skew. It writes `now_ms` as well as `now`; sleeping is the other clock's.
 - **`to_ms(SystemTime) -> i64`:** what `now_ms` computes, for wrappers that change `now`.
 - **`JsClock`** (feature `js`, `wasm32-unknown-unknown`): `Date.now` and a promise around `setTimeout`, in steps of

@@ -1,7 +1,7 @@
 # Agent instructions
 
-loko: resources for Rust programs (`Clock`, `Random`, `Env`, `Console`, `Store`) passed to code as traits, with test,
-system, and JavaScript implementations. One crate per resource (`crates/loko-<resource>`), the macros
+loko: services for Rust programs (`Clock`, `Random`, `Env`, `Console`, `Store`) passed to code as traits, with test,
+system, and JavaScript implementations. One crate per service (`crates/loko-<service>`), the macros
 (`crates/loko-macros`), and the `loko` crate, which re-exports them and adds the platforms.
 
 ## Before changing code
@@ -23,7 +23,7 @@ system, and JavaScript implementations. One crate per resource (`crates/loko-<re
 - **Everything builds for WASM.** Every crate builds for `wasm32-unknown-unknown` and `wasm32-wasip2`. JavaScript
   implementations are gated to `wasm32-unknown-unknown` and feature `js`; system ones to targets that have a system.
   CI checks all three targets.
-- **Every resource is a `#[loko_macros::resource]` trait** whose methods take `&self` and return `impl Future` without a
+- **Every service is a `#[loko_macros::service]` trait** whose methods take `&self` and return `impl Future` without a
   `Send` bound when they are async.
 - **Test implementations are deterministic** and their clones share state.
 - **Ideas, not code.** Never copy or translate another project's code. Credit ideas in `PRIOR_ART.md`

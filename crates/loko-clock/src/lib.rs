@@ -1,4 +1,4 @@
-//! loko's `Clock` resource: the time and a timer, passed to code instead of read from the system, so
+//! loko's `Clock` service: the time and a timer, passed to code instead of read from the system, so
 //! tests control time and the same code runs natively and in WebAssembly.
 //!
 //! - [`Clock`]: `now`, `now_ms`, and `sleep`.
@@ -56,30 +56,30 @@ pub trait Clock {
 }
 
 /// A type that holds a [`Clock`], and so is one: `#[loko::bundle]` implements this for a field,
-/// and `#[loko::wraps]` for a wrapper that changes some methods. It's what `#[loko::resource]`
+/// and `#[loko::wraps]` for a wrapper that changes some methods. It's what `#[loko::service]`
 /// generates, written out so this crate needs no macros.
 pub trait HasClock {
-    /// The resource held.
+    /// The service held.
     type Clock: Clock;
 
     /// The [`Clock`] this holds.
     fn clock(&self) -> &Self::Clock;
 
-    /// Forwards [`Clock::now`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    /// Forwards [`Clock::now`] to the held service; a `#[loko::wraps]` implementation may replace it.
     #[doc(hidden)]
     #[inline]
     fn wrapped_now(&self) -> SystemTime {
         self.clock().now()
     }
 
-    /// Forwards [`Clock::now_ms`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    /// Forwards [`Clock::now_ms`] to the held service; a `#[loko::wraps]` implementation may replace it.
     #[doc(hidden)]
     #[inline]
     fn wrapped_now_ms(&self) -> i64 {
         self.clock().now_ms()
     }
 
-    /// Forwards [`Clock::sleep`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    /// Forwards [`Clock::sleep`] to the held service; a `#[loko::wraps]` implementation may replace it.
     #[doc(hidden)]
     #[inline]
     fn wrapped_sleep(&self, duration: Duration) -> impl Future<Output = ()> {

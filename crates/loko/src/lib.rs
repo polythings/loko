@@ -1,19 +1,19 @@
-//! Resources passed to code instead of reached for: the time, randomness, environment variables,
+//! Services passed to code instead of reached for: the time, randomness, environment variables,
 //! the console, and object storage. Code takes `&impl Clock` (or `&(impl Clock + Random)`, …), the
 //! program passes a platform, and tests pass a [`TestPlatform`] they control. The same code runs
 //! natively and in WebAssembly.
 //!
-//! - Resources: [`clock`], [`random`], [`env`](mod@env), [`console`], and `store` (feature `store`), each a
+//! - Services: [`clock`], [`random`], [`env`](mod@env), [`console`], and `store` (feature `store`), each a
 //!   trait with test, native, and JavaScript implementations. The traits are also at the root.
 //! - Platforms: [`TestPlatform`], `StdPlatform`, `TokioPlatform`, and `JsPlatform` bundle one of each.
-//! - [`resource`] makes a trait a resource, [`bundle`] makes a struct each resource its fields
-//!   provide, and [`wraps`] makes a wrapper that changes some of a resource's methods and forwards
-//!   the rest. [`prelude`] brings in the resources with the `HasClock`-style traits these name.
+//! - [`service`] makes a trait a service, [`bundle`] makes a struct each service its fields
+//!   provide, and [`wraps`] makes a wrapper that changes some of a service's methods and forwards
+//!   the rest. [`prelude`] brings in the services with the `HasClock`-style traits these name.
 //!
-//! Resource methods take `&self`, so one value can be several resources and clones can share state.
-//! A resource whose state changes keeps it behind a lock or an atomic, locked only for the
+//! Service methods take `&self`, so one value can be several services and clones can share state.
+//! A service whose state changes keeps it behind a lock or an atomic, locked only for the
 //! synchronous part of a call: a `std::sync::Mutex` guard or `RefCell` borrow held across `.await`
-//! deadlocks or panics when another task uses the resource meanwhile.
+//! deadlocks or panics when another task uses the service meanwhile.
 //!
 //! ```
 //! use std::time::Duration;
@@ -21,8 +21,8 @@
 //! use loko::{Clock, Random, Rng, TestPlatform};
 //!
 //! /// An ID from the time and a random suffix.
-//! fn id(resources: &(impl Clock + Random)) -> String {
-//!     format!("{}-{:04x}", resources.now_ms(), resources.rng().next_u64() & 0xffff)
+//! fn id(services: &(impl Clock + Random)) -> String {
+//!     format!("{}-{:04x}", services.now_ms(), services.rng().next_u64() & 0xffff)
 //! }
 //!
 //! let platform = TestPlatform::default();
@@ -30,18 +30,18 @@
 //! assert_eq!(id(&platform), "1000-7e6f");
 //! ```
 //!
-//! A program bundles the resources it needs, its own among them:
+//! A program bundles the services it needs, its own among them:
 //!
 //! ```
 //! # #[cfg(feature = "store")] {
 //! use loko::prelude::*;
 //! use loko::store::MemoryStore;
 //!
-//! #[bundle]
+//! #[loko::bundle]
 //! struct App {
-//!     #[has(Store)]
+//!     #[loko::has(Store)]
 //!     store: MemoryStore,
-//!     #[has(Clock, Random)]
+//!     #[loko::has(Clock, Random)]
 //!     platform: TestPlatform,
 //! }
 //!
@@ -57,7 +57,7 @@ pub use loko_console as console;
 pub use loko_console::{Console, HasConsole};
 pub use loko_env as env;
 pub use loko_env::{Env, HasEnv};
-pub use loko_macros::{bundle, has, resource, wraps};
+pub use loko_macros::{bundle, has, service, wraps};
 #[cfg(feature = "object-store")]
 pub use loko_object_store as object_store;
 pub use loko_random as random;
@@ -74,7 +74,7 @@ mod platform;
 #[doc = include_str!("../../../README.md")]
 pub struct ReadmeExamples;
 
-/// The resources, the `Has` traits that `#[loko::bundle]` and `#[wraps]` name next to them, the
+/// The services, the `Has` traits that `#[loko::bundle]` and `#[wraps]` name next to them, the
 /// macros, and the platforms.
 pub mod prelude {
     #[cfg(all(feature = "js", all(target_arch = "wasm32", target_os = "unknown")))]
@@ -84,7 +84,7 @@ pub mod prelude {
     #[cfg(all(feature = "tokio", not(target_arch = "wasm32")))]
     pub use crate::TokioPlatform;
     pub use crate::{
-        Clock, Console, Env, HasClock, HasConsole, HasEnv, HasRandom, Random, Rng, TestPlatform, bundle, has, resource,
+        Clock, Console, Env, HasClock, HasConsole, HasEnv, HasRandom, Random, Rng, TestPlatform, bundle, has, service,
         wraps,
     };
     #[cfg(feature = "store")]

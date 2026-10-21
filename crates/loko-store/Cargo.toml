@@ -1,6 +1,6 @@
 [package]
 name = "loko-store"
-description = "loko's Store resource: objects by URI, with conditional writes, multipart uploads, and prefix listing; a store in memory"
+description = "loko's Store service: objects by URI, with conditional writes, multipart uploads, and prefix listing; a store in memory"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true

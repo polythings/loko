@@ -26,7 +26,7 @@ over S3, a local directory, memory, or a JavaScript binding.
 - **`Error`:** `NotFound`, `Invalid`, `Unsupported`, and `Store` (the backend's error, as text); `non_exhaustive`.
   Libraries with their own error type convert from it.
 - **`MemoryStore`:** objects in memory, for tests. Clones share the objects.
-- **Wrappers** ([spec 1](0001-resources.md)), each a `Store` around another; they stack:
+- **Wrappers** ([spec 1](0001-services.md)), each a `Store` around another; they stack:
   - `CountingStore`: counts the calls of each kind it passes on (`counts()`, `reset()`); clones share the counts.
   - `ReadOnlyStore`: reads through; `put`, `put_if_absent`, `upload`, and `delete` return `Unsupported`.
   - `PrefixedStore`: passes on only URIs under its prefix (a `/` is added if missing), refusing the rest and any `.`

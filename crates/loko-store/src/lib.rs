@@ -1,4 +1,4 @@
-//! loko's `Store` resource: objects by URI, passed to code instead of reached through a particular
+//! loko's `Store` service: objects by URI, passed to code instead of reached through a particular
 //! client, so the same code works over S3, a local directory, memory, or a JavaScript binding.
 //!
 //! - [`Store`]: get, ranged get, exists, put, put-if-absent (a conditional write), multipart upload,

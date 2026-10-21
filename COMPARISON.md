@@ -2,9 +2,9 @@
 
 loko does two things:
 
-1. **It ships resources.** `Clock`, `Random`, `Env`, `Console`, and `Store` come with an implementation for tests, one
+1. **It ships services.** `Clock`, `Random`, `Env`, `Console`, and `Store` come with an implementation for tests, one
    for the system, and one for JavaScript hosts, plus platforms that bundle them and wrappers that change them.
-2. **It has a small macro layer.** `#[resource]`, `#[loko::bundle]`, and `#[wraps]` let your own traits work the
+2. **It has a small macro layer.** `#[service]`, `#[loko::bundle]`, and `#[wraps]` let your own traits work the
    same way.
 
 Each crate below overlaps with one of those. The comparisons were checked against these versions (October 2026):
@@ -25,7 +25,7 @@ dependency-injector 2.1.0, ferrous-di 0.2.0, reinhardt-di 0.3.25, tower 0.5.3, a
 | [reinhardt-di](https://crates.io/crates/reinhardt-di) | FastAPI-style injection for the Reinhardt web framework | You build on Reinhardt |
 | [tower](https://crates.io/crates/tower) | Request-to-response services and middleware layers | You compose network clients and servers |
 | [cap-std](https://crates.io/crates/cap-std) | The standard library's file system and network through capability handles | Code must not reach files outside a directory it was given |
-| loko | Resources with test, system, and JavaScript implementations, and the macros to add your own | Code should get the time, randomness, environment, console, or storage passed in, and run in tests, natively, and in the browser |
+| loko | Services with test, system, and JavaScript implementations, and the macros to add your own | Code should get the time, randomness, environment, console, or storage passed in, and run in tests, natively, and in the browser |
 
 ## Forwarding: delegate and ambassador
 
@@ -42,12 +42,12 @@ These are the closest to loko's macros.
 
 **What loko adds:**
 - `#[loko::bundle]` is ambassador's idea. Credited in [PRIOR_ART.md](PRIOR_ART.md).
-- `#[resource]` also generates a `HasX` trait. Code can bound on it, and get the held resource with `.x()`.
+- `#[service]` also generates a `HasX` trait. Code can bound on it, and get the held service with `.x()`.
 - `#[wraps]` forwards everything you don't write, without listing signatures. That combines what delegate and
   ambassador each do half of.
 
 **Use them instead** for forwarding inherent methods (delegate), for enums (ambassador), for traits you can't mark
-(ambassador's remote traits), or anywhere you don't need loko's resources.
+(ambassador's remote traits), or anywhere you don't need loko's services.
 
 ## Compile-time wiring: fundle, nject, shaku, and service-builder
 
@@ -74,15 +74,15 @@ These build a graph of components and check at compile time that every dependenc
   is ordinary code.
 - **It decides what code may use, and with which implementation.** Code bounds on traits (`impl Store + Clock`), not on
   concrete types (fundle's `AsRef<Database>`).
-- **No trait objects.** loko never needs `dyn`, so resources with `-> impl Future` methods (`Store`, `Clock::sleep`)
+- **No trait objects.** loko never needs `dyn`, so services with `-> impl Future` methods (`Store`, `Clock::sleep`)
   work as they are. shaku would need them boxed through `async-trait`.
-- **No `Send`, `Sync`, or `'static` requirement,** so JavaScript-backed resources work.
-- **It ships the resources:** test clocks, seeded randomness, an in-memory store, consoles that record. These crates
+- **No `Send`, `Sync`, or `'static` requirement,** so JavaScript-backed services work.
+- **It ships the services:** test clocks, seeded randomness, an in-memory store, consoles that record. These crates
   wire your types; you bring the implementations, test ones included.
 
 **Use them alongside or instead** when a large application has many components that need each other at
 construction (fundle), or when a server needs per-request instances next to singletons and framework integration
-(shaku). They combine with loko: fundle can build the struct that `#[loko::bundle]` then exposes as resources, and
+(shaku). They combine with loko: fundle can build the struct that `#[loko::bundle]` then exposes as services, and
 a shaku component can hold a loko platform.
 
 ## Runtime containers: dill, dependency-injector, ferrous-di, and reinhardt-di
@@ -100,7 +100,7 @@ These register implementations in a container and resolve them by type at run ti
   providers, request, singleton, and transient scopes, and test overrides. Injectables are `Send + Sync + 'static`, it
   uses `async-trait`, and its README says resolution runs only on native targets.
 
-**Where loko differs:** nothing is resolved at run time, so a missing resource is a compile error, not a startup
+**Where loko differs:** nothing is resolved at run time, so a missing service is a compile error, not a startup
 failure. There's no registry to configure, and calls are statically dispatched. loko also has no lifetimes or scopes,
 and no choosing implementations from configuration at run time.
 
@@ -113,9 +113,11 @@ tower's `Service` is one generic trait, a request in and a future of a response 
 another. Timeouts, retries, rate limits, and load balancing stack around any client or server.
 
 **Where loko differs:**
+- **Same word, different thing.** A tower `Service` is a request handler. A loko service is something code is
+  given, such as a clock or a store, as in ZIO and the dependency-injection crates. loko exports no `Service` trait.
 - **Many specific traits instead of one generic one.** Wrapping is one feature among several, not the point of the
   library.
-- **The same stacking idea, applied to resources.** loko's wrappers stack the way tower's layers do (credited in
+- **The same stacking idea, applied to services.** loko's wrappers stack the way tower's layers do (credited in
   [PRIOR_ART.md](PRIOR_ART.md)), but there's no `Layer` trait yet ([#7](https://github.com/polythings/loko/issues/7)).
 - **Complementary:** a tower retry layer could take its backoff from a loko `Clock`, so tests could skip the waits.
 
@@ -133,10 +135,10 @@ it was given, not by path, so it can't reach outside it. It's a foundation for W
 
 ## What loko does that the others don't
 
-- **Ships the resources.** A test clock whose `sleep` moves time instead of waiting, seeded randomness, an environment
+- **Ships the services.** A test clock whose `sleep` moves time instead of waiting, seeded randomness, an environment
   in a map, a console that records lines, and an in-memory store with conditional writes. Each has system and
   JavaScript counterparts and the same interface. The other crates wire up implementations; none ships these.
-- **Async without boxing.** Resources return `impl Future`, and loko passes them as generics, never as `dyn`, so
+- **Async without boxing.** Services return `impl Future`, and loko passes them as generics, never as `dyn`, so
   there's no `async-trait` and no heap allocation per call.
 - **No `Send`, `Sync`, or `'static` requirement.** Futures that wrap JavaScript promises aren't `Send`. The containers
   above require `Send + Sync`; shaku requires it unless `thread_safe` is turned off.
@@ -152,4 +154,4 @@ it was given, not by path, so it can't reach outside it. It's a foundation for W
 - **No help building a graph in order,** and no web framework integrations.
 
 For those, pair loko with the crate that does them, or use that crate on its own. For a program with a handful of
-resources, chosen once and swapped in tests and in the browser, loko and ordinary Rust are enough.
+services, chosen once and swapped in tests and in the browser, loko and ordinary Rust are enough.

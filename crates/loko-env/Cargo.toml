@@ -1,6 +1,6 @@
 [package]
 name = "loko-env"
-description = "loko's Env resource: environment variables, from the process or from a map"
+description = "loko's Env service: environment variables, from the process or from a map"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true

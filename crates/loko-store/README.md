@@ -1,6 +1,6 @@
 # loko-store
 
-[loko](https://github.com/polythings/loko)'s `Store` resource: objects by absolute URI, passed to code instead of
+[loko](https://github.com/polythings/loko)'s `Store` service: objects by absolute URI, passed to code instead of
 reached through a particular client, so the same code works over S3, a local directory, memory, or a JavaScript
 binding.
 

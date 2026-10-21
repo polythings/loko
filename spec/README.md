@@ -18,7 +18,7 @@ loko's design. Start here, people and agents alike.
 
 ## Writing and changing a spec
 
-- **When:** anything beyond a small fix gets a spec, or a change to one, agreed before it is built. A new resource is
+- **When:** anything beyond a small fix gets a spec, or a change to one, agreed before it is built. A new service is
   a new spec.
 - **New spec:** copy [TEMPLATE.md](TEMPLATE.md) to `NNNN-short-name.md` with the next free number (numbers are never
   reused), and add it to a milestone and to the index below.
@@ -33,7 +33,7 @@ loko's design. Start here, people and agents alike.
 
 | # | Spec | Status | Updated |
 |---:|---|---|---|
-| 1 | [Resources, bundles, and wrappers](0001-resources.md) | Done | 2026-10-21 |
+| 1 | [Services, bundles, and wrappers](0001-services.md) | Done | 2026-10-21 |
 | 2 | [Clock](0002-clock.md) | Done | 2026-10-21 |
 | 3 | [Random](0003-random.md) | Done | 2026-10-21 |
 | 4 | [Env](0004-env.md) | Done | 2026-10-20 |

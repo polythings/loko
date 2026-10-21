@@ -8,12 +8,12 @@ enforce the mechanical rules (see [Checks](#checks)). This guide covers what the
 
 1. **Readable first.** Someone new should understand a function from its name, its signature, and one pass through
    the body.
-2. **One crate per resource.** A resource's crate holds its trait and its implementations, and depends on no other
-   resource's crate, so a library can take just the resource it needs. The `loko` crate re-exports them all and holds
+2. **One crate per service.** A service's crate holds its trait and its implementations, and depends on no other
+   service's crate, so a library can take just the service it needs. The `loko` crate re-exports them all and holds
    what combines them (the platforms).
-3. **Small traits.** A resource has the few methods its callers need, and provided methods for what follows from them
+3. **Small traits.** A service has the few methods its callers need, and provided methods for what follows from them
    (`now_ms` from `now`). Implementations are where the variety goes.
-4. **Every target.** Each resource has a test implementation that runs anywhere, a system one where there is a system
+4. **Every target.** Each service has a test implementation that runs anywhere, a system one where there is a system
    (native and WASI), and a JavaScript one for `wasm32-unknown-unknown` where it makes sense.
 5. **One definition of each thing.** Before writing a helper, constant, or type, look for an existing one.
 6. **Behaviour, spec, and tests change together.** A change users can see updates its spec, adds or updates tests, and
@@ -38,13 +38,13 @@ we took.
 
 ## Rust
 
-- **loko's own resources need no macros.** Their crates write out what `#[resource]` generates (`HasX`, its
+- **loko's own services need no macros.** Their crates write out what `#[service]` generates (`HasX`, its
   `wrapped_` methods, and the blanket impl) and implement their wrappers' `HasX` by hand, so a library can depend on
   `loko-clock` without `syn`. Keep that code in the macro's shape; the tests in `crates/loko/tests` use it with
   `#[loko::bundle]` and `#[loko::wraps]`.
-- **Resources:** a trait marked `#[loko_macros::resource]` (or written out, as above), methods on `&self`, async methods returning `impl Future`
+- **Services:** a trait marked `#[loko_macros::service]` (or written out, as above), methods on `&self`, async methods returning `impl Future`
   without `Send`. Implementations that hold state share it between clones (`Arc<Mutex<…>>`).
-- **State in resources:** methods take `&self`, so state that changes sits behind a `Mutex` or an atomic (counters).
+- **State in services:** methods take `&self`, so state that changes sits behind a `Mutex` or an atomic (counters).
   Lock only for the synchronous part of a call: never hold a `std::sync::Mutex` guard or a `RefCell` borrow across
   `.await` (Clippy's `await_holding_lock` and `await_holding_refcell_ref` catch it). Clones share state.
 - **Errors:** what the platform gives (`io::Result` for the console), or the crate's own `non_exhaustive` error enum

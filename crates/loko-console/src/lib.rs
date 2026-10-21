@@ -1,4 +1,4 @@
-//! loko's `Console` resource: lines to standard output and standard error, passed to code instead of
+//! loko's `Console` service: lines to standard output and standard error, passed to code instead of
 //! printed directly, so tests read what was printed and code in a browser logs to its console.
 //!
 //! - [`Console`]: `print_line` and `print_error_line`.
@@ -39,23 +39,23 @@ pub trait Console {
 }
 
 /// A type that holds a [`Console`], and so is one: `#[loko::bundle]` implements this for a field,
-/// and `#[loko::wraps]` for a wrapper that changes some methods. It's what `#[loko::resource]`
+/// and `#[loko::wraps]` for a wrapper that changes some methods. It's what `#[loko::service]`
 /// generates, written out so this crate needs no macros.
 pub trait HasConsole {
-    /// The resource held.
+    /// The service held.
     type Console: Console;
 
     /// The [`Console`] this holds.
     fn console(&self) -> &Self::Console;
 
-    /// Forwards [`Console::print_line`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    /// Forwards [`Console::print_line`] to the held service; a `#[loko::wraps]` implementation may replace it.
     #[doc(hidden)]
     #[inline]
     fn wrapped_print_line(&self, line: &str) -> io::Result<()> {
         self.console().print_line(line)
     }
 
-    /// Forwards [`Console::print_error_line`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    /// Forwards [`Console::print_error_line`] to the held service; a `#[loko::wraps]` implementation may replace it.
     #[doc(hidden)]
     #[inline]
     fn wrapped_print_error_line(&self, line: &str) -> io::Result<()> {

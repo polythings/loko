@@ -1,5 +1,5 @@
-//! Platforms: one of each resource, ready to pass. A platform is each resource it holds; a program
-//! that needs more (a `Store`, its own resources) puts a platform in a `#[loko::bundle]` struct.
+//! Platforms: one of each service, ready to pass. A platform is each service it holds; a program
+//! that needs more (a `Store`, its own services) puts a platform in a `#[loko::bundle]` struct.
 
 use crate::clock::{Clock, TestClock};
 use crate::console::{Console, TestConsole};
@@ -7,7 +7,7 @@ use crate::env::{Env, MapEnv};
 use crate::random::{Random, SeededRandom};
 use crate::{HasClock, HasConsole, HasEnv, HasRandom, bundle};
 
-/// Resources for tests: a [`TestClock`] at the Unix epoch, a [`SeededRandom`] with seed 0, an empty
+/// Services for tests: a [`TestClock`] at the Unix epoch, a [`SeededRandom`] with seed 0, an empty
 /// [`MapEnv`], and a [`TestConsole`] that records lines. Clones share the clock, the generator, and
 /// the console; the fields are public so a test can set them up and look at them.
 #[bundle]
@@ -56,7 +56,7 @@ impl TestPlatform {
     }
 }
 
-/// The system's resources for programs without an async runtime (feature `getrandom`, native
+/// The system's services for programs without an async runtime (feature `getrandom`, native
 /// targets and WASI): [`StdClock`](crate::clock::StdClock), whose `sleep` blocks the thread,
 /// [`OsRandom`](crate::random::OsRandom), [`SystemEnv`](crate::env::SystemEnv), and
 /// [`StdConsole`](crate::console::StdConsole).
@@ -79,7 +79,7 @@ pub struct StdPlatform {
     pub console: crate::console::StdConsole,
 }
 
-/// The system's resources under tokio (feature `tokio`, native targets): [`StdPlatform`] with
+/// The system's services under tokio (feature `tokio`, native targets): [`StdPlatform`] with
 /// [`TokioClock`](crate::clock::TokioClock), whose `sleep` is tokio's timer.
 #[cfg(all(feature = "tokio", not(target_arch = "wasm32")))]
 #[bundle]
@@ -100,7 +100,7 @@ pub struct TokioPlatform {
     pub console: crate::console::StdConsole,
 }
 
-/// The JavaScript host's resources (feature `js`, `wasm32-unknown-unknown`): [`JsClock`](crate::clock::JsClock),
+/// The JavaScript host's services (feature `js`, `wasm32-unknown-unknown`): [`JsClock`](crate::clock::JsClock),
 /// [`JsRandom`](crate::random::JsRandom), a [`MapEnv`] (JavaScript hosts have no common environment;
 /// set the variables the program reads), and [`JsConsole`](crate::console::JsConsole).
 #[cfg(all(feature = "js", all(target_arch = "wasm32", target_os = "unknown")))]
@@ -130,7 +130,7 @@ mod tests {
     use crate::Rng;
 
     #[test]
-    fn a_test_platform_is_each_resource() {
+    fn a_test_platform_is_each_service() {
         let platform = TestPlatform::new().at_ms(1_000).seeded(0).with_var("REGION", "us-east-2");
         platform.clock.advance(Duration::from_millis(500));
         assert_eq!(platform.now_ms(), 1_500);

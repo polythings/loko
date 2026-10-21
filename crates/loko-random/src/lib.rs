@@ -1,4 +1,4 @@
-//! loko's `Random` resource: a source of random number generators, passed to code instead of drawn
+//! loko's `Random` service: a source of random number generators, passed to code instead of drawn
 //! from a global, so tests are repeatable and the same code runs natively and in WebAssembly.
 //!
 //! [`Random::rng`] hands out a generator of the caller's own, a [`rand_core::Rng`] drawn from with
@@ -48,16 +48,16 @@ pub trait Random {
 }
 
 /// A type that holds a [`Random`], and so is one: `#[loko::bundle]` implements this for a field,
-/// and `#[loko::wraps]` for a wrapper that changes some methods. It's what `#[loko::resource]`
+/// and `#[loko::wraps]` for a wrapper that changes some methods. It's what `#[loko::service]`
 /// generates, written out so this crate needs no macros.
 pub trait HasRandom {
-    /// The resource held.
+    /// The service held.
     type Random: Random;
 
     /// The [`Random`] this holds.
     fn random(&self) -> &Self::Random;
 
-    /// Forwards [`Random::rng`] to the held resource; a `#[loko::wraps]` implementation may replace it.
+    /// Forwards [`Random::rng`] to the held service; a `#[loko::wraps]` implementation may replace it.
     #[doc(hidden)]
     #[inline]
     fn wrapped_rng(&self) -> <Self::Random as Random>::Rng {

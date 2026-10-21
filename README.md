@@ -1,8 +1,8 @@
 # loko
 
-Resources for Rust programs: the time, random numbers, environment variables, the console, and object storage, passed
+Services for Rust programs: the time, random numbers, environment variables, the console, and object storage, passed
 to code as traits instead of reached for as globals. Code takes `&impl Clock` (or `&(impl Clock + Random)`, …), the
-program passes the system's resources, and tests pass resources they control. The same code runs natively, under WASI,
+program passes the system's services, and tests pass services they control. The same code runs natively, under WASI,
 and in browsers and Workers.
 
 ```toml
@@ -15,14 +15,14 @@ loko = { version = "0.2", features = ["tokio", "store"] }
 | `getrandom` (default) | `OsRandom` and `StdPlatform` (native and WASI) |
 | `tokio` | `TokioClock` and `TokioPlatform` (native) |
 | `js` | `JsClock`, `JsRandom`, `JsConsole`, and `JsPlatform` (`wasm32-unknown-unknown`) |
-| `store` | `loko::store`: the `Store` resource, `MemoryStore`, and the store wrappers |
+| `store` | `loko::store`: the `Store` service, `MemoryStore`, and the store wrappers |
 | `object-store` | `loko::object_store`: a `Store` over an `object_store` client (S3, GCS, Azure, local files) |
 
 ## Guide
 
-The examples build on each other, from one resource to bundles of your own resources and wrappers.
+The examples build on each other, from one service to bundles of your own services and wrappers.
 
-### 1. One resource
+### 1. One service
 
 A function that needs the time takes a `Clock` instead of calling `SystemTime::now()`. The program passes the system
 clock; a test passes a clock it sets.
@@ -58,16 +58,16 @@ use loko::{Clock, Random, Rng, TestPlatform};
 
 /// Calls `attempt` up to five times, waiting one to two seconds between tries.
 async fn retry<T, E>(
-    resources: &(impl Clock + Random),
+    services: &(impl Clock + Random),
     mut attempt: impl FnMut() -> Result<T, E>,
 ) -> Result<T, E> {
-    let mut rng = resources.rng();
+    let mut rng = services.rng();
     let mut tries = 1;
     loop {
         match attempt() {
             Err(_) if tries < 5 => {
                 let jitter = rng.next_u64() % 1_000;
-                resources.sleep(Duration::from_millis(1_000 + jitter)).await;
+                services.sleep(Duration::from_millis(1_000 + jitter)).await;
                 tries += 1;
             }
             result => return result,
@@ -91,24 +91,24 @@ async fn main() {
 }
 ```
 
-### 3. Several resources
+### 3. Several services
 
-A function can take each resource as its own argument, or one value that is all of them. A platform is one of each
+A function can take each service as its own argument, or one value that is all of them. A platform is one of each
 of `Clock`, `Random`, `Env`, and `Console`: `TestPlatform` for tests, `StdPlatform` or `TokioPlatform` for programs,
 and `JsPlatform` in the browser.
 
 ```rust
 use loko::{Console, Env, TestPlatform};
 
-/// Separate arguments: plain, and fine for two or three resources.
+/// Separate arguments: plain, and fine for two or three services.
 fn greet(env: &impl Env, console: &impl Console) -> std::io::Result<()> {
     let name = env.var("USER").unwrap_or_else(|| "stranger".into());
     console.print_line(&format!("Hello, {name}"))
 }
 
 /// One value: handier as the list grows, and easy to store.
-fn greet_all(resources: &(impl Env + Console)) -> std::io::Result<()> {
-    greet(resources, resources)
+fn greet_all(services: &(impl Env + Console)) -> std::io::Result<()> {
+    greet(services, services)
 }
 
 // A program would pass `StdPlatform::default()`.
@@ -144,7 +144,7 @@ async fn main() -> loko::store::Result<()> {
 ### 5. Bundles
 
 When code needs a store and the time together, put them in one struct with `#[loko::bundle]`: each field marked
-`#[loko::has(…)]` makes the struct that resource. Generic fields let the program and its tests fill the same struct
+`#[loko::has(…)]` makes the struct that service. Generic fields let the program and its tests fill the same struct
 differently.
 
 ```rust
@@ -176,12 +176,12 @@ async fn main() -> loko::store::Result<()> {
 }
 ```
 
-`#[loko::has(Clock)]` names `HasClock` next to `Clock`, so bring both in: `loko::prelude::*` does for loko's resources,
+`#[loko::has(Clock)]` names `HasClock` next to `Clock`, so bring both in: `loko::prelude::*` does for loko's services,
 or write the path (`#[loko::has(loko::Clock)]`).
 
-### 6. Keeping resources in a struct
+### 6. Keeping services in a struct
 
-A library type holds its resources as one generic field and asks for what each method needs.
+A library type holds its services as one generic field and asks for what each method needs.
 
 ```rust
 use loko::prelude::*;
@@ -189,13 +189,13 @@ use loko::store::MemoryStore;
 
 /// Uploads files under a prefix, named by time and a random suffix.
 struct Uploader<R> {
-    resources: R,
+    services: R,
     prefix: String,
 }
 
 impl<R: Store + Clock + Random> Uploader<R> {
     async fn upload(&self, body: Vec<u8>) -> loko::store::Result<String> {
-        let r = &self.resources;
+        let r = &self.services;
         let uri = format!("{}/{}-{:04x}", self.prefix, r.now_ms(), r.rng().next_u64() & 0xffff);
         r.put(&uri, body).await?;
         Ok(uri)
@@ -213,7 +213,7 @@ struct Test {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> loko::store::Result<()> {
     let uploader = Uploader {
-        resources: Test { platform: TestPlatform::new(), store: MemoryStore::new() },
+        services: Test { platform: TestPlatform::new(), store: MemoryStore::new() },
         prefix: "memory://uploads".into(),
     };
     assert_eq!(uploader.upload(b"x".to_vec()).await?, "memory://uploads/0-7e6f");
@@ -221,9 +221,9 @@ async fn main() -> loko::store::Result<()> {
 }
 ```
 
-### 7. Your own implementation of a resource
+### 7. Your own implementation of a service
 
-loko's resources are ordinary traits, so you can implement one yourself: a clock on a runtime loko doesn't ship, an
+loko's services are ordinary traits, so you can implement one yourself: a clock on a runtime loko doesn't ship, an
 `Env` read from a config file, a `Store` over your own storage. Implement the required methods and the provided ones
 (here `now_ms`) come with it; then it goes anywhere the trait is asked for, and into bundles with `#[loko::has(Clock)]`.
 Step 11 makes the same clock as a wrapper around any other clock.
@@ -271,7 +271,7 @@ async fn main() {
 
 ### 8. Your own platform
 
-A platform is nothing more than a `#[loko::bundle]` struct with a field for each resource, which is how loko's own
+A platform is nothing more than a `#[loko::bundle]` struct with a field for each service, which is how loko's own
 are built. Make one when your program runs somewhere loko's don't fit: a clock of your own (step 7), a different
 generator, variables from a file. This one is the real system with a fixed random seed, for reproducing a run whose
 random choices led to a bug.
@@ -305,8 +305,8 @@ impl ReplayPlatform {
 }
 
 /// Picks one of `servers` at random.
-fn pick<'a>(resources: &impl Random, servers: &[&'a str]) -> &'a str {
-    servers[(resources.rng().next_u64() % servers.len() as u64) as usize]
+fn pick<'a>(services: &impl Random, servers: &[&'a str]) -> &'a str {
+    servers[(services.rng().next_u64() % servers.len() as u64) as usize]
 }
 
 // A program logs its seed, then a later run passes the same one to see the same choices.
@@ -314,15 +314,15 @@ let servers = ["a", "b", "c"];
 assert_eq!(pick(&ReplayPlatform::new(7), &servers), pick(&ReplayPlatform::new(7), &servers));
 ```
 
-A platform can hold more than the four, such as a `Store` or resources of your own; at that point it's a bundle
+A platform can hold more than the four, such as a `Store` or services of your own; at that point it's a bundle
 (step 5), and the two are the same thing. Give it public fields so tests can reach the parts. If other crates use it,
-mark it `#[non_exhaustive]` and give it a constructor, so adding a resource later isn't a breaking change.
+mark it `#[non_exhaustive]` and give it a constructor, so adding a service later isn't a breaking change.
 
-### 9. Your own resource
+### 9. Your own service
 
-`#[loko::resource]` makes any trait a resource, so a program's own dependencies (a mailer, a payment client, a feature
+`#[loko::service]` makes any trait a service, so a program's own dependencies (a mailer, a payment client, a feature
 flag service) work like loko's: a real implementation for the program, a test one that records, and a place in the
-bundle. An implementation can use other resources.
+bundle. An implementation can use other services.
 
 ```rust
 use std::future::{Future, ready};
@@ -330,7 +330,7 @@ use std::sync::{Arc, Mutex};
 
 use loko::prelude::*;
 
-#[loko::resource]
+#[loko::service]
 trait Mailer {
     /// Sends `body` to `to`.
     fn send(&self, to: &str, body: &str) -> impl Future<Output = std::io::Result<()>>;
@@ -373,20 +373,20 @@ async fn main() -> std::io::Result<()> {
 }
 ```
 
-### 10. State in your own resources
+### 10. State in your own services
 
-Every resource method takes `&self`, never `&mut self`. That's what lets one value be several resources at once
-(`greet(resources, resources)` in step 3), lets clones share state (a test keeps one `TestClock` and advances the one
-the code holds), and lets resources be used across `.await`. A resource whose state changes keeps it behind a lock or
+Every service method takes `&self`, never `&mut self`. That's what lets one value be several services at once
+(`greet(services, services)` in step 3), lets clones share state (a test keeps one `TestClock` and advances the one
+the code holds), and lets services be used across `.await`. A service whose state changes keeps it behind a lock or
 an atomic, as `TestMailer` above does with its `Mutex`. Three rules keep that safe:
 
 - **Lock only for the synchronous part.** Don't hold a `std::sync::Mutex` guard or a `RefCell` borrow across an
-  `.await`. While the task waits, another task can use the same resource and try to take the lock: a `Mutex` then
+  `.await`. While the task waits, another task can use the same service and try to take the lock: a `Mutex` then
   blocks that thread for good (on a single-threaded runtime or in the browser, the whole program stops), and a
   `RefCell` panics. Clippy warns about both (`await_holding_lock`, `await_holding_refcell_ref`). If state really must
   stay locked while waiting, use an async mutex such as `tokio::sync::Mutex`.
 - **Counters are atomics,** which need no lock.
-- **Clones share state.** Cloning a resource that holds an `Arc` gives a second handle to the same state, not a copy.
+- **Clones share state.** Cloning a service that holds an `Arc` gives a second handle to the same state, not a copy.
 
 ```rust
 use std::sync::Mutex;
@@ -419,13 +419,13 @@ async fn main() {
 ```
 
 A lock taken and released at once costs tens of nanoseconds, which matters only in hot loops. That's why `Random`
-hands out generators instead of numbers: `resources.rng()` locks at most once, and drawing from the generator it
+hands out generators instead of numbers: `services.rng()` locks at most once, and drawing from the generator it
 returns takes no lock at all, however many numbers you draw. The system implementations (`StdClock`, `OsRandom`,
 `SystemEnv`, `StdConsole`) hold no state and take no lock.
 
 ### 11. Wrappers
 
-A wrapper holds one implementation of a resource and is one itself, changing some methods. `#[loko::wraps(field:
+A wrapper holds one implementation of a service and is one itself, changing some methods. `#[loko::wraps(field:
 Type)]` on its `impl` forwards every method it doesn't write to the field.
 
 ```rust
@@ -532,7 +532,7 @@ async fn main() {
 }
 ```
 
-A wrapper keeps the inner resource's associated types, and a provided method it doesn't write (such as `now_ms`)
+A wrapper keeps the inner service's associated types, and a provided method it doesn't write (such as `now_ms`)
 forwards to the inner one too, so write it when it depends on a method the wrapper changes.
 
 ### 12. In the browser
@@ -550,7 +550,7 @@ pub async fn fetch_with_retries() -> Result<u32, JsValue> {
 }
 ```
 
-Futures aren't required to be `Send`, so a resource can wrap JavaScript promises, as `JsClock` does.
+Futures aren't required to be `Send`, so a service can wrap JavaScript promises, as `JsClock` does.
 
 ## Sans-I/O
 
@@ -558,11 +558,11 @@ Libraries that do no I/O of their own ("sans-I/O") come in two shapes, and loko 
 
 - **State machines driven by the caller.** Network protocols such as quinn-proto (QUIC), str0m (WebRTC), and smoltcp
   (TCP/IP) take the time as an argument, return what to send and when to wake them next, and never sleep. The state
-  machine needs no resources; the program around it uses a `Clock` to wait for the deadline, and a test uses a
+  machine needs no services; the program around it uses a `Clock` to wait for the deadline, and a test uses a
   `TestClock` to run through hours of timers at once.
 - **Libraries that call traits the application implements.** delta-kernel-rs's `Engine` and rustls's time and
   randomness providers work this way: the library runs a chain of steps that depend on each other and calls back for
-  each read, write, or timestamp. That's the shape loko's resources serve: the library takes
+  each read, write, or timestamp. That's the shape loko's services serve: the library takes
   `&(impl Store + Clock + Random)`, and the application chooses the implementations.
 
 Choose the first for a protocol that reacts to packets and timers, the second for a sequence of reads and writes where
@@ -619,9 +619,9 @@ each is for, when to use which, and what loko does differently.
 
 ## Reference
 
-### Resources
+### Services
 
-| Resource | Methods | For tests | System | JavaScript (feature `js`) |
+| Service | Methods | For tests | System | JavaScript (feature `js`) |
 |---|---|---|---|---|
 | [`Clock`](crates/loko-clock) | `now`, `now_ms`, `sleep` | `TestClock` | `StdClock`, `TokioClock` (feature `tokio`) | `JsClock` |
 | [`Random`](crates/loko-random) | `rng`, a generator of your own | `SeededRandom` | `OsRandom` (feature `getrandom`) | `JsRandom` |
@@ -651,8 +651,8 @@ each is for, when to use which, and what loko does differently.
 
 | Macro | What it does |
 |---|---|
-| `#[loko::resource]` | Makes a trait a resource: adds `HasX` and makes every `HasX` an `X` |
-| `#[loko::bundle]` | Makes a struct each resource its `#[loko::has(…)]` fields provide |
+| `#[loko::service]` | Makes a trait a service: adds `HasX` and makes every `HasX` an `X` |
+| `#[loko::bundle]` | Makes a struct each service its `#[loko::has(…)]` fields provide |
 | `#[loko::wraps(field: Type)]` | Makes an `impl X for Wrapper` a wrapper: the methods written replace `X`'s, the rest forward |
 
 ### Crates
@@ -660,12 +660,12 @@ each is for, when to use which, and what loko does differently.
 | Crate | What it holds |
 |---|---|
 | [`loko`](crates/loko) | Everything below, the platforms, and a prelude, with a feature per optional part |
-| [`loko-clock`](crates/loko-clock), [`loko-random`](crates/loko-random), [`loko-env`](crates/loko-env), [`loko-console`](crates/loko-console), [`loko-store`](crates/loko-store) | One resource each, with its implementations and wrappers |
+| [`loko-clock`](crates/loko-clock), [`loko-random`](crates/loko-random), [`loko-env`](crates/loko-env), [`loko-console`](crates/loko-console), [`loko-store`](crates/loko-store) | One service each, with its implementations and wrappers |
 | [`loko-object-store`](crates/loko-object-store) | A `Store` over an `object_store` client: S3, GCS, Azure, local files, memory |
-| [`loko-macros`](crates/loko-macros) | `#[resource]`, `#[loko::bundle]`, and `#[wraps]` |
+| [`loko-macros`](crates/loko-macros) | `#[service]`, `#[loko::bundle]`, and `#[wraps]` |
 
-A library that needs one resource can depend on its crate alone. The resource crates have no dependencies of their
-own (`loko-random` has `rand_core`), and no macros: only `loko` and code defining its own resources use `loko-macros`.
+A library that needs one service can depend on its crate alone. The service crates have no dependencies of their
+own (`loko-random` has `rand_core`), and no macros: only `loko` and code defining its own services use `loko-macros`.
 
 ## Development
 

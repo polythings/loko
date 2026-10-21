@@ -1,18 +1,18 @@
-//! Resources and bundles defined outside loko work like loko's own.
+//! Services and bundles defined outside loko work like loko's own.
 
 use std::time::Duration;
 
 use loko::clock::TestClock;
 use loko::prelude::*;
 
-/// A resource of this crate's own.
-#[loko::resource]
+/// A service of this crate's own.
+#[loko::service]
 trait Greeter {
     /// A greeting for `name`.
     fn greet(&self, name: &str) -> String;
 }
 
-/// A greeter that needs other resources: the clock for the time of day.
+/// A greeter that needs other services: the clock for the time of day.
 struct ClockGreeter<C> {
     clock: C,
 }
@@ -33,14 +33,14 @@ struct App<G> {
     greeter: G,
 }
 
-/// Code that needs a mix of loko's resources and this crate's.
+/// Code that needs a mix of loko's services and this crate's.
 fn welcome(app: &(impl Greeter + Console + Env)) {
     let name = app.var("USER").unwrap_or_else(|| "stranger".into());
     app.print_line(&app.greet(&name)).expect("a test console doesn't fail");
 }
 
 #[test]
-fn own_resources_bundle_with_loko_resources() {
+fn own_services_bundle_with_loko_services() {
     let platform = TestPlatform::new().with_var("USER", "Ada");
     let greeter = ClockGreeter { clock: platform.clock.clone() };
     let app = App { platform: platform.clone(), greeter };
@@ -80,7 +80,7 @@ mod store {
 
     /// Async methods, an associated type, and default methods forward.
     #[test]
-    fn async_resources_forward() {
+    fn async_services_forward() {
         let app = Stored { store: MemoryStore::new(), platform: TestPlatform::new().at_ms(42) };
         let run = async {
             let uri = format!("memory:///logs/{}", app.now_ms());
@@ -95,7 +95,7 @@ mod store {
         };
         let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
         let std::task::Poll::Ready((listed, got)) = std::pin::pin!(run).poll(&mut cx) else {
-            panic!("memory and test resources are ready at once");
+            panic!("memory and test services are ready at once");
         };
         assert_eq!(listed, ["memory:///big", "memory:///logs/42"]);
         assert_eq!(got.as_deref(), Some(&b"a"[..]));
@@ -156,9 +156,9 @@ fn store_wrappers_stack() {
     assert_eq!(memory.uris(), ["memory://wh/a/t"]);
 }
 
-/// A resource with a generic method (whose `T` the generated code mustn't clash with) and a method
+/// A service with a generic method (whose `T` the generated code mustn't clash with) and a method
 /// compiled out by `#[cfg]` (whose generated items must go with it).
-#[loko::resource]
+#[loko::service]
 trait Log {
     /// The line logged for `value`.
     fn line<T: std::fmt::Display>(&self, value: T) -> String;

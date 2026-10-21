@@ -1,6 +1,6 @@
 # loko-random
 
-[loko](https://github.com/polythings/loko)'s `Random` resource: a source of random number generators, passed to code
+[loko](https://github.com/polythings/loko)'s `Random` service: a source of random number generators, passed to code
 instead of drawn from a global, so tests are repeatable and the same code runs natively, under WASI, and in browsers.
 
 - `Random::rng()` hands out a generator of the caller's own: a `rand_core::Rng`, drawn from with `&mut` and no locks,

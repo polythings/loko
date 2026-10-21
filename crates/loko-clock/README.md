@@ -1,6 +1,6 @@
 # loko-clock
 
-[loko](https://github.com/polythings/loko)'s `Clock` resource: the time and a timer, passed to code instead of read
+[loko](https://github.com/polythings/loko)'s `Clock` service: the time and a timer, passed to code instead of read
 from the system, so tests control time and the same code runs natively, under WASI, and in browsers.
 
 - `Clock`: `now` (a `SystemTime`), `now_ms` (milliseconds since the Unix epoch), and `sleep(Duration)`. The future

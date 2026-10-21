@@ -30,7 +30,7 @@ a generator of its own, so tests get the same numbers on every run and drawing m
 - **`JsRandom`** (feature `js`, `wasm32-unknown-unknown`): `JsRng`, which calls `crypto.getRandomValues` in chunks of
   at most 65,536 bytes. A `CryptoRng`; it panics on a host without Web Crypto rather than fall back to numbers that
   aren't.
-- **`Mutex<R>`** is a `Random` for any `R: SeedableRng + Rng`, so a program's existing generator works as a resource;
+- **`Mutex<R>`** is a `Random` for any `R: SeedableRng + Rng`, so a program's existing generator works as a service;
   `rng()` forks it (`SeedableRng::fork`).
 - `rand_core`'s `Rng`, `CryptoRng`, and `SeedableRng` are re-exported, and `Rng` is in `loko::prelude`.
 
