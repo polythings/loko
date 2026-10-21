@@ -1,0 +1,29 @@
+[package]
+name = "loko-console"
+description = "loko's Console service: lines to standard output and error, captured in tests, or to the JavaScript console"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+loko-macros.workspace = true
+
+[features]
+default = []
+# `JsConsole`: `console.log` and `console.error` (`wasm32-unknown-unknown` with a JavaScript host).
+js = ["dep:js-sys", "dep:wasm-bindgen"]
+
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+js-sys = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

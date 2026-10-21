@@ -1,0 +1,22 @@
+[package]
+name = "loko-macros"
+description = "loko's macros: #[service] makes a trait a service, #[derive(Services)] wires services into a struct"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,38 @@
+[package]
+name = "loko-clock"
+description = "loko's Clock service: the time and a timer, with test, tokio, and JavaScript clocks"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+loko-macros.workspace = true
+
+[features]
+default = []
+# `TokioClock`: the system clock and tokio's timer (native targets).
+tokio = ["dep:tokio"]
+# `JsClock`: `Date.now` and `setTimeout` (`wasm32-unknown-unknown` with a JavaScript host).
+js = ["dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { workspace = true, optional = true }
+
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+js-sys = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

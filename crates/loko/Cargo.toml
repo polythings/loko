@@ -1,0 +1,44 @@
+[package]
+name = "loko"
+description = "Services passed to code instead of reached for: Clock, Random, Env, Console, and Store, with test, native, and JavaScript implementations"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+default = ["getrandom"]
+# `OsRandom` and `StdPlatform` (native targets and WASI).
+getrandom = ["loko-random/getrandom"]
+# `TokioClock` and `TokioPlatform` (native targets).
+tokio = ["getrandom", "loko-clock/tokio"]
+# `JsClock`, `JsRandom`, `JsConsole`, and `JsPlatform` (`wasm32-unknown-unknown` with a JavaScript host).
+js = ["loko-clock/js", "loko-random/js", "loko-console/js"]
+# `Random` for a `Mutex` around any `rand_core` generator.
+rand = ["loko-random/rand"]
+# `loko::store`: the `Store` service and `MemoryStore`.
+store = ["dep:loko-store"]
+# `loko::object_store`: a `Store` over an `object_store` client.
+object-store = ["store", "dep:loko-object-store"]
+
+[dependencies]
+loko-clock.workspace = true
+loko-random.workspace = true
+loko-env.workspace = true
+loko-console.workspace = true
+loko-macros.workspace = true
+loko-store = { workspace = true, optional = true }
+loko-object-store = { workspace = true, optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

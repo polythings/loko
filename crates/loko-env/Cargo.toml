@@ -1,0 +1,20 @@
+[package]
+name = "loko-env"
+description = "loko's Env service: environment variables, from the process or from a map"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+loko-macros.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true

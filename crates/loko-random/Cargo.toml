@@ -1,0 +1,37 @@
+[package]
+name = "loko-random"
+description = "loko's Random service: random numbers, with seeded, operating-system, and JavaScript sources"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+default = []
+# `OsRandom`: the operating system's random number generator (native targets and WASI).
+getrandom = ["dep:getrandom"]
+# `JsRandom`: `crypto.getRandomValues` (`wasm32-unknown-unknown` with a JavaScript host).
+js = ["dep:js-sys", "dep:wasm-bindgen"]
+# `Random` for a `Mutex` around any `rand_core` generator.
+rand = ["dep:rand_core"]
+
+[dependencies]
+loko-macros.workspace = true
+rand_core = { workspace = true, optional = true }
+
+[target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
+getrandom = { workspace = true, optional = true }
+
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+js-sys = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true
