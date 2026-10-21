@@ -48,7 +48,7 @@ fn own_resources_bundle_with_loko_resources() {
     platform.clock.advance(Duration::from_hours(13));
     welcome(&app);
     assert_eq!(platform.console.lines(), ["Good morning, Ada", "Good afternoon, Ada"]);
-    assert_eq!(app.next_u64(), 0xE220_A839_7B1D_CDAF, "Random forwards to the platform");
+    assert_eq!(app.rng().next_u64(), 0xA706_DD2F_4D19_7E6F, "Random forwards to the platform");
 }
 
 /// Tuple structs bundle too.

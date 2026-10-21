@@ -123,13 +123,14 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
+    use crate::Rng;
 
     #[test]
     fn a_test_platform_is_each_resource() {
         let platform = TestPlatform::new().at_ms(1_000).seeded(0).with_var("REGION", "us-east-2");
         platform.clock.advance(Duration::from_millis(500));
         assert_eq!(platform.now_ms(), 1_500);
-        assert_eq!(platform.next_u64(), 0xE220_A839_7B1D_CDAF);
+        assert_eq!(platform.rng().next_u64(), 0xA706_DD2F_4D19_7E6F);
         assert_eq!(platform.var("REGION").as_deref(), Some("us-east-2"));
         platform.print_line("hello").unwrap();
         assert_eq!(platform.console.lines(), ["hello"]);
@@ -140,7 +141,7 @@ mod tests {
     fn the_std_platform_reads_the_system() {
         let platform = StdPlatform::default();
         assert!(platform.now_ms() > 1_700_000_000_000);
-        assert_ne!(platform.next_u64(), platform.next_u64());
+        assert_ne!(platform.rng().next_u64(), platform.rng().next_u64());
         assert_eq!(platform.var("LOKO_SURELY_UNSET"), None);
     }
 }

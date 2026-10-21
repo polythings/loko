@@ -7,15 +7,15 @@ that bundle one of each.
 ```rust
 use std::time::Duration;
 
-use loko::{Clock, Random, TestPlatform};
+use loko::{Clock, Random, Rng, TestPlatform};
 
 fn id(resources: &(impl Clock + Random)) -> String {
-    format!("{}-{:04x}", resources.now_ms(), resources.next_u64() & 0xffff)
+    format!("{}-{:04x}", resources.now_ms(), resources.rng().next_u64() & 0xffff)
 }
 
 let platform = TestPlatform::default(); // TokioPlatform, StdPlatform, or JsPlatform in a program
 platform.clock.advance(Duration::from_secs(1));
-assert_eq!(id(&platform), "1000-cdaf");
+assert_eq!(id(&platform), "1000-7e6f");
 ```
 
 | Feature | Adds |
@@ -23,7 +23,6 @@ assert_eq!(id(&platform), "1000-cdaf");
 | `getrandom` (default) | `OsRandom` and `StdPlatform` (native and WASI) |
 | `tokio` | `TokioClock` and `TokioPlatform` (native) |
 | `js` | `JsClock`, `JsRandom`, `JsConsole`, and `JsPlatform` (`wasm32-unknown-unknown`) |
-| `rand` | `Random` for a `Mutex` around a `rand_core` generator |
 | `store` | `loko::store`: the `Store` resource and `MemoryStore` |
 | `object-store` | `loko::object_store`: a `Store` over an `object_store` client |
 

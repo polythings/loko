@@ -18,8 +18,6 @@ getrandom = ["loko-random/getrandom"]
 tokio = ["getrandom", "loko-clock/tokio"]
 # `JsClock`, `JsRandom`, `JsConsole`, and `JsPlatform` (`wasm32-unknown-unknown` with a JavaScript host).
 js = ["loko-clock/js", "loko-random/js", "loko-console/js"]
-# `Random` for a `Mutex` around any `rand_core` generator.
-rand = ["loko-random/rand"]
 # `loko::store`: the `Store` resource and `MemoryStore`.
 store = ["dep:loko-store"]
 # `loko::object_store`: a `Store` over an `object_store` client.

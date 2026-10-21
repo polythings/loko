@@ -18,16 +18,16 @@
 //! ```
 //! use std::time::Duration;
 //!
-//! use loko::{Clock, Random, TestPlatform};
+//! use loko::{Clock, Random, Rng, TestPlatform};
 //!
 //! /// An ID from the time and a random suffix.
 //! fn id(resources: &(impl Clock + Random)) -> String {
-//!     format!("{}-{:04x}", resources.now_ms(), resources.next_u64() & 0xffff)
+//!     format!("{}-{:04x}", resources.now_ms(), resources.rng().next_u64() & 0xffff)
 //! }
 //!
 //! let platform = TestPlatform::default();
 //! platform.clock.advance(Duration::from_secs(1));
-//! assert_eq!(id(&platform), "1000-cdaf");
+//! assert_eq!(id(&platform), "1000-7e6f");
 //! ```
 //!
 //! A program bundles the resources it needs, its own among them:
@@ -61,7 +61,7 @@ pub use loko_macros::{Provides, resource, wraps};
 #[cfg(feature = "object-store")]
 pub use loko_object_store as object_store;
 pub use loko_random as random;
-pub use loko_random::{HasRandom, Random};
+pub use loko_random::{CryptoRng, HasRandom, Random, Rng};
 #[cfg(feature = "store")]
 pub use loko_store as store;
 #[cfg(feature = "store")]
@@ -84,7 +84,8 @@ pub mod prelude {
     #[cfg(all(feature = "tokio", not(target_arch = "wasm32")))]
     pub use crate::TokioPlatform;
     pub use crate::{
-        Clock, Console, Env, HasClock, HasConsole, HasEnv, HasRandom, Provides, Random, TestPlatform, resource, wraps,
+        Clock, Console, Env, HasClock, HasConsole, HasEnv, HasRandom, Provides, Random, Rng, TestPlatform, resource,
+        wraps,
     };
     #[cfg(feature = "store")]
     pub use crate::{HasStore, Store};

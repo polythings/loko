@@ -51,14 +51,12 @@ jobs:
           cargo check -p loko --no-default-features
           cargo check -p loko
           cargo check -p loko --features tokio
-          cargo check -p loko --features rand
           cargo check -p loko --features store
           cargo check -p loko --features object-store
           cargo check -p loko-clock --no-default-features
           cargo check -p loko-clock --features tokio
           cargo check -p loko-random --no-default-features
           cargo check -p loko-random --features getrandom
-          cargo check -p loko-random --features rand
           cargo check -p loko-env
           cargo check -p loko-console
           cargo check -p loko-store

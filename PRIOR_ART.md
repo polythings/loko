@@ -9,7 +9,7 @@ never code: every line of loko is our own. How we credit is in [CONTRIBUTING.md]
 |---|---|---|
 | [tokio](https://github.com/tokio-rs/tokio) | MIT | The timer behind `TokioClock` |
 | [getrandom](https://github.com/rust-random/getrandom) | Apache-2.0 / MIT | The operating system's generator behind `OsRandom` |
-| [rand_core](https://github.com/rust-random/rand) | Apache-2.0 / MIT | The generator trait `Random` accepts (feature `rand`) |
+| [rand_core](https://github.com/rust-random/rand) | Apache-2.0 / MIT | The generator traits (`Rng`, `CryptoRng`, `SeedableRng`) of the generators `Random` hands out, and `fork` |
 | [wasm-bindgen](https://github.com/wasm-bindgen/wasm-bindgen) (`js-sys`, `wasm-bindgen-futures`) | Apache-2.0 / MIT | The JavaScript implementations |
 | [object_store](https://github.com/apache/arrow-rs-object-store) | Apache-2.0 / MIT | The stores `loko-object-store` adapts |
 | [syn](https://github.com/dtolnay/syn), [quote](https://github.com/dtolnay/quote) | Apache-2.0 / MIT | The macros |

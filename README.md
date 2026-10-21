@@ -15,7 +15,6 @@ loko = { version = "0.2", features = ["tokio", "store"] }
 | `getrandom` (default) | `OsRandom` and `StdPlatform` (native and WASI) |
 | `tokio` | `TokioClock` and `TokioPlatform` (native) |
 | `js` | `JsClock`, `JsRandom`, `JsConsole`, and `JsPlatform` (`wasm32-unknown-unknown`) |
-| `rand` | `Random` for a `Mutex` around a `rand_core` generator |
 | `store` | `loko::store`: the `Store` resource, `MemoryStore`, and the store wrappers |
 | `object-store` | `loko::object_store`: a `Store` over an `object_store` client (S3, GCS, Azure, local files) |
 
@@ -49,24 +48,25 @@ assert_eq!(stamp(&clock, "started"), "[1000] started");
 ### 2. Waiting without waiting
 
 `sleep` is a `Clock` method too. A test clock's sleep returns at once and moves the clock forward, so code that waits
-(retries, timeouts, polling) runs in tests without waiting. Random numbers come from a `Random`, so the jitter is the
-same on every test run.
+(retries, timeouts, polling) runs in tests without waiting. Random numbers come from a generator that a `Random`
+hands out (`rng()`), so the jitter is the same on every test run.
 
 ```rust
 use std::time::Duration;
 
-use loko::{Clock, Random, TestPlatform};
+use loko::{Clock, Random, Rng, TestPlatform};
 
 /// Calls `attempt` up to five times, waiting one to two seconds between tries.
 async fn retry<T, E>(
     resources: &(impl Clock + Random),
     mut attempt: impl FnMut() -> Result<T, E>,
 ) -> Result<T, E> {
+    let mut rng = resources.rng();
     let mut tries = 1;
     loop {
         match attempt() {
             Err(_) if tries < 5 => {
-                let jitter = resources.next_u64() % 1_000;
+                let jitter = rng.next_u64() % 1_000;
                 resources.sleep(Duration::from_millis(1_000 + jitter)).await;
                 tries += 1;
             }
@@ -196,7 +196,7 @@ struct Uploader<R> {
 impl<R: Store + Clock + Random> Uploader<R> {
     async fn upload(&self, body: Vec<u8>) -> loko::store::Result<String> {
         let r = &self.resources;
-        let uri = format!("{}/{}-{:04x}", self.prefix, r.now_ms(), r.next_u64() & 0xffff);
+        let uri = format!("{}/{}-{:04x}", self.prefix, r.now_ms(), r.rng().next_u64() & 0xffff);
         r.put(&uri, body).await?;
         Ok(uri)
     }
@@ -216,7 +216,7 @@ async fn main() -> loko::store::Result<()> {
         resources: Test { platform: TestPlatform::new(), store: MemoryStore::new() },
         prefix: "memory://uploads".into(),
     };
-    assert_eq!(uploader.upload(b"x".to_vec()).await?, "memory://uploads/0-cdaf");
+    assert_eq!(uploader.upload(b"x".to_vec()).await?, "memory://uploads/0-7e6f");
     Ok(())
 }
 ```
@@ -321,10 +321,10 @@ async fn main() {
 }
 ```
 
-A lock taken and released at once costs tens of nanoseconds, which matters only in hot loops. The one that comes up is
-`SeededRandom`, which locks for every number: code that draws millions of numbers seeds a local generator from the
-resource once (`SmallRng::seed_from_u64(resources.next_u64())`) and draws from that. The system implementations
-(`StdClock`, `OsRandom`, `SystemEnv`, `StdConsole`) hold no state and take no lock.
+A lock taken and released at once costs tens of nanoseconds, which matters only in hot loops. That's why `Random`
+hands out generators instead of numbers: `resources.rng()` locks at most once, and drawing from the generator it
+returns takes no lock at all, however many numbers you draw. The system implementations (`StdClock`, `OsRandom`,
+`SystemEnv`, `StdConsole`) hold no state and take no lock.
 
 ### 9. Wrappers
 
@@ -415,7 +415,7 @@ each is for, when to use which, and what loko does differently.
 | Resource | Methods | For tests | System | JavaScript (feature `js`) |
 |---|---|---|---|---|
 | [`Clock`](crates/loko-clock) | `now`, `now_ms`, `sleep` | `TestClock` | `StdClock`, `TokioClock` (feature `tokio`) | `JsClock` |
-| [`Random`](crates/loko-random) | `next_u64`, `fill` | `SeededRandom` | `OsRandom` (feature `getrandom`) | `JsRandom` |
+| [`Random`](crates/loko-random) | `rng`, a generator of your own | `SeededRandom` | `OsRandom` (feature `getrandom`) | `JsRandom` |
 | [`Env`](crates/loko-env) | `var`, `vars` | `MapEnv` | `SystemEnv` | `MapEnv` |
 | [`Console`](crates/loko-console) | `print_line`, `print_error_line` | `TestConsole` | `StdConsole` | `JsConsole` |
 | [`Store`](crates/loko-store) (feature `store`) | get, put, put-if-absent, upload, list, delete | `MemoryStore` | [`ObjectStoreAdapter`](crates/loko-object-store) (feature `object-store`) | the application's binding |

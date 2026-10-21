@@ -1,3 +1,7 @@
+use std::convert::Infallible;
+
+use rand_core::{TryCryptoRng, TryRng};
+
 use crate::Random;
 
 /// The operating system's random number generator (feature `getrandom`, native targets and WASI).
@@ -5,25 +9,55 @@ use crate::Random;
 pub struct OsRandom;
 
 impl Random for OsRandom {
-    fn next_u64(&self) -> u64 {
-        // The operating system's generator only fails when it isn't available at all.
-        getrandom::u64().expect("the operating system's random number generator")
-    }
+    type Rng = OsRng;
 
-    fn fill(&self, dest: &mut [u8]) {
-        getrandom::fill(dest).expect("the operating system's random number generator");
+    fn rng(&self) -> OsRng {
+        OsRng
     }
 }
 
+/// Numbers straight from the operating system's generator; fit for secrets.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct OsRng;
+
+// The operating system's generator only fails when it isn't available at all.
+const UNAVAILABLE: &str = "the operating system's random number generator";
+
+impl TryRng for OsRng {
+    type Error = Infallible;
+
+    fn try_next_u32(&mut self) -> Result<u32, Infallible> {
+        Ok(getrandom::u32().expect(UNAVAILABLE))
+    }
+
+    fn try_next_u64(&mut self) -> Result<u64, Infallible> {
+        Ok(getrandom::u64().expect(UNAVAILABLE))
+    }
+
+    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Infallible> {
+        getrandom::fill(dst).expect(UNAVAILABLE);
+        Ok(())
+    }
+}
+
+impl TryCryptoRng for OsRng {}
+
 #[cfg(test)]
 mod tests {
+    use rand_core::{CryptoRng, Rng};
+
     use super::*;
 
-    #[test]
-    fn os_random_numbers_differ() {
-        assert_ne!(OsRandom.next_u64(), OsRandom.next_u64());
+    fn token(random: &impl Random<Rng: CryptoRng>) -> [u8; 32] {
         let mut bytes = [0u8; 32];
-        OsRandom.fill(&mut bytes);
-        assert!(bytes.iter().any(|&b| b != 0));
+        random.rng().fill_bytes(&mut bytes);
+        bytes
+    }
+
+    #[test]
+    fn os_numbers_differ_and_are_fit_for_secrets() {
+        let mut rng = OsRandom.rng();
+        assert_ne!(rng.next_u64(), rng.next_u64());
+        assert_ne!(token(&OsRandom), token(&OsRandom));
     }
 }

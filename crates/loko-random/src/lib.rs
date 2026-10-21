@@ -1,44 +1,49 @@
-//! loko's `Random` resource: random numbers, passed to code instead of drawn from a global source, so
-//! tests are repeatable and the same code runs natively and in WebAssembly.
+//! loko's `Random` resource: a source of random number generators, passed to code instead of drawn
+//! from a global, so tests are repeatable and the same code runs natively and in WebAssembly.
 //!
-//! - [`Random`]: `next_u64` and `fill`.
-//! - [`SeededRandom`]: a repeatable sequence from a seed, for tests.
-//! - `OsRandom` (feature `getrandom`): the operating system's generator, on native targets and WASI.
-//! - `JsRandom` (feature `js`): `crypto.getRandomValues`, in browsers, Workers, and Node.
-//! - Feature `rand`: any `rand_core` generator in a `Mutex` is a `Random`.
+//! [`Random::rng`] hands out a generator of the caller's own, a [`rand_core::Rng`] drawn from with
+//! `&mut` and no locks, and usable with anything in the `rand` ecosystem. Each implementation chooses
+//! the generator:
+//!
+//! - [`SeededRandom`]: [`SeededRng`]s forked from one seeded sequence, the same on every run; for
+//!   tests, not for secrets.
+//! - `OsRandom` (feature `getrandom`): `OsRng`, the operating system's generator, on native targets
+//!   and WASI. A [`CryptoRng`].
+//! - `JsRandom` (feature `js`): `JsRng`, `crypto.getRandomValues`, in browsers, Workers, and Node.
+//!   A [`CryptoRng`].
+//! - A `Mutex` around any seedable `rand_core` generator: generators forked from it.
+//!
+//! Code that makes secrets asks for a cryptographic generator: `random: &impl Random<Rng: CryptoRng>`.
 //!
 //! ```
-//! use loko_random::{Random, SeededRandom};
+//! use loko_random::{Random, Rng, SeededRandom};
 //!
 //! let (a, b) = (SeededRandom::new(7), SeededRandom::new(7));
-//! assert_eq!(a.next_u64(), b.next_u64());
+//! let (mut x, mut y) = (a.rng(), b.rng());
+//! assert_eq!(x.next_u64(), y.next_u64(), "the same seed gives the same numbers");
 //! ```
 
 #[cfg(all(feature = "js", all(target_arch = "wasm32", target_os = "unknown")))]
 mod js;
-#[cfg(feature = "rand")]
 mod rand;
 #[cfg(all(feature = "getrandom", not(all(target_arch = "wasm32", target_os = "unknown"))))]
 mod system;
 mod testing;
 
 #[cfg(all(feature = "js", all(target_arch = "wasm32", target_os = "unknown")))]
-pub use js::JsRandom;
+pub use js::{JsRandom, JsRng};
+pub use rand_core::{self, CryptoRng, Rng, SeedableRng};
 #[cfg(all(feature = "getrandom", not(all(target_arch = "wasm32", target_os = "unknown"))))]
-pub use system::OsRandom;
-pub use testing::SeededRandom;
+pub use system::{OsRandom, OsRng};
+pub use testing::{SeededRandom, SeededRng};
 
-/// Random numbers.
+/// A source of random number generators.
 #[loko_macros::resource]
 pub trait Random {
-    /// A random number.
-    fn next_u64(&self) -> u64;
+    /// The generator [`rng`](Random::rng) hands out.
+    type Rng: rand_core::Rng;
 
-    /// Fills `dest` with random bytes.
-    fn fill(&self, dest: &mut [u8]) {
-        for chunk in dest.chunks_mut(8) {
-            let bytes = self.next_u64().to_le_bytes();
-            chunk.copy_from_slice(&bytes[..chunk.len()]);
-        }
-    }
+    /// A generator of the caller's own: draw from it with `&mut` as much as needed, with no locks.
+    /// Whether it is fit for secrets depends on the implementation: ask for `Random<Rng: CryptoRng>`.
+    fn rng(&self) -> Self::Rng;
 }

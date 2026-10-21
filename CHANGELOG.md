@@ -12,8 +12,10 @@ unrelated 0.1.0 from 2022 (task scripting), by the same owner.
 
 - `loko-clock`: the `Clock` resource (`now`, `now_ms`, `sleep`), `TestClock`, `StdClock`, `TokioClock` (feature
   `tokio`), `JsClock` (feature `js`), and `OffsetClock`, a clock ahead or behind another.
-- `loko-random`: the `Random` resource (`next_u64`, `fill`), `SeededRandom` (SplitMix64), `OsRandom` (feature
-  `getrandom`), `JsRandom` (feature `js`), and `Random` for a `Mutex` around a `rand_core` generator (feature `rand`).
+- `loko-random`: the `Random` resource, a source of `rand_core` generators (`rng()`, drawn from with no locks);
+  `SeededRandom` (`SeededRng`, SplitMix64, for tests), `OsRandom` (feature `getrandom`, `OsRng`), `JsRandom` (feature
+  `js`, `JsRng`), and `Random` for a `Mutex` around any seedable `rand_core` generator. The OS and JavaScript generators
+  are `CryptoRng`, so code that makes secrets can ask for `Random<Rng: CryptoRng>`.
 - `loko-env`: the `Env` resource (`var`, `vars`), `SystemEnv`, and `MapEnv`.
 - `loko-console`: the `Console` resource (`print_line`, `print_error_line`), `StdConsole`, `TestConsole`, and
   `JsConsole` (feature `js`).

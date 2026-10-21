@@ -16,12 +16,10 @@ default = []
 getrandom = ["dep:getrandom"]
 # `JsRandom`: `crypto.getRandomValues` (`wasm32-unknown-unknown` with a JavaScript host).
 js = ["dep:js-sys", "dep:wasm-bindgen"]
-# `Random` for a `Mutex` around any `rand_core` generator.
-rand = ["dep:rand_core"]
 
 [dependencies]
 loko-macros.workspace = true
-rand_core = { workspace = true, optional = true }
+rand_core.workspace = true
 
 [target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
 getrandom = { workspace = true, optional = true }
