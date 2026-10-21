@@ -5,7 +5,7 @@ status: done
 updated: 2026-10-20
 versions: [unreleased]
 related: [1]
-issues: []
+issues: [6]
 ---
 
 # 6. Store
@@ -40,7 +40,7 @@ read and write through it.
 
 ## Open questions and issues
 
-None.
+- [#6](https://github.com/polythings/loko/issues/6) Store adapter for OpenDAL (loko-opendal)
 
 ## History
 
