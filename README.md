@@ -268,7 +268,55 @@ async fn main() {
 }
 ```
 
-### 8. Your own resource
+### 8. Your own platform
+
+A platform is nothing more than a `#[derive(Provides)]` struct with a field for each resource, which is how loko's own
+are built. Make one when your program runs somewhere loko's don't fit: a clock of your own (step 7), a different
+generator, variables from a file. This one is the real system with a fixed random seed, for reproducing a run whose
+random choices led to a bug.
+
+```rust
+use loko::clock::StdClock;
+use loko::console::StdConsole;
+use loko::env::SystemEnv;
+use loko::prelude::*;
+use loko::random::SeededRandom;
+
+/// The system's clock, environment, and console, with random numbers from a fixed seed.
+#[derive(Clone, Debug, Provides)]
+pub struct ReplayPlatform {
+    #[provides(Clock)]
+    pub clock: StdClock,
+    #[provides(Random)]
+    pub random: SeededRandom,
+    #[provides(Env)]
+    pub env: SystemEnv,
+    #[provides(Console)]
+    pub console: StdConsole,
+}
+
+impl ReplayPlatform {
+    /// The run of `seed`: the same random choices every time.
+    pub fn new(seed: u64) -> Self {
+        Self { clock: StdClock, random: SeededRandom::new(seed), env: SystemEnv, console: StdConsole }
+    }
+}
+
+/// Picks one of `servers` at random.
+fn pick<'a>(resources: &impl Random, servers: &[&'a str]) -> &'a str {
+    servers[(resources.rng().next_u64() % servers.len() as u64) as usize]
+}
+
+// A program logs its seed, then a later run passes the same one to see the same choices.
+let servers = ["a", "b", "c"];
+assert_eq!(pick(&ReplayPlatform::new(7), &servers), pick(&ReplayPlatform::new(7), &servers));
+```
+
+A platform can hold more than the four, such as a `Store` or resources of your own; at that point it's a bundle
+(step 5), and the two are the same thing. Give it public fields so tests can reach the parts. If other crates use it,
+mark it `#[non_exhaustive]` and give it a constructor, so adding a resource later isn't a breaking change.
+
+### 9. Your own resource
 
 `#[loko::resource]` makes any trait a resource, so a program's own dependencies (a mailer, a payment client, a feature
 flag service) work like loko's: a real implementation for the program, a test one that records, and a place in the
@@ -323,7 +371,7 @@ async fn main() -> std::io::Result<()> {
 }
 ```
 
-### 9. State in your own resources
+### 10. State in your own resources
 
 Every resource method takes `&self`, never `&mut self`. That's what lets one value be several resources at once
 (`greet(resources, resources)` in step 3), lets clones share state (a test keeps one `TestClock` and advances the one
@@ -373,7 +421,7 @@ hands out generators instead of numbers: `resources.rng()` locks at most once, a
 returns takes no lock at all, however many numbers you draw. The system implementations (`StdClock`, `OsRandom`,
 `SystemEnv`, `StdConsole`) hold no state and take no lock.
 
-### 10. Wrappers
+### 11. Wrappers
 
 A wrapper holds one implementation of a resource and is one itself, changing some methods. `#[loko::wraps(field:
 Type)]` on its `impl` forwards every method it doesn't write to the field.
@@ -432,7 +480,7 @@ async fn main() {
 A wrapper keeps the inner resource's associated types, and a provided method it doesn't write (such as `now_ms`)
 forwards to the inner one too, so write it when it depends on a method the wrapper changes.
 
-### 11. In the browser
+### 12. In the browser
 
 With feature `js` on `wasm32-unknown-unknown`, `JsPlatform` uses `Date.now`, `setTimeout`, `crypto.getRandomValues`,
 and the JavaScript console. The `retry` from step 2 runs unchanged:
