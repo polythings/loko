@@ -1,0 +1,60 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/loko-clock",
+    "crates/loko-random",
+    "crates/loko-env",
+    "crates/loko-console",
+    "crates/loko-store",
+    "crates/loko-object-store",
+    "crates/loko-macros",
+    "crates/loko",
+]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.99"
+license = "Apache-2.0"
+repository = "https://github.com/polythings/loko"
+keywords = ["services", "clock", "random", "testing", "wasm"]
+categories = ["development-tools::testing", "wasm", "asynchronous"]
+
+[workspace.dependencies]
+loko-clock = { path = "crates/loko-clock", version = "0.2.0" }
+loko-random = { path = "crates/loko-random", version = "0.2.0" }
+loko-env = { path = "crates/loko-env", version = "0.2.0" }
+loko-console = { path = "crates/loko-console", version = "0.2.0" }
+loko-store = { path = "crates/loko-store", version = "0.2.0" }
+loko-object-store = { path = "crates/loko-object-store", version = "0.2.0" }
+loko-macros = { path = "crates/loko-macros", version = "0.2.0" }
+loko = { path = "crates/loko", version = "0.2.0" }
+futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
+object_store = { version = "0.14", default-features = false }
+url = "2"
+rand_core = { version = "0.10", default-features = false }
+tokio = { version = "1", features = ["time"] }
+getrandom = "0.4"
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full", "visit", "visit-mut"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unreachable_pub = "warn"
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+allow_attributes = "warn"
+dbg_macro = "warn"
+todo = "warn"
+unwrap_used = "warn"
