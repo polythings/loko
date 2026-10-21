@@ -552,6 +552,65 @@ pub async fn fetch_with_retries() -> Result<u32, JsValue> {
 
 Futures aren't required to be `Send`, so a resource can wrap JavaScript promises, as `JsClock` does.
 
+## Sans-I/O
+
+Libraries that do no I/O of their own ("sans-I/O") come in two shapes, and loko fits both:
+
+- **State machines driven by the caller.** Network protocols such as quinn-proto (QUIC), str0m (WebRTC), and smoltcp
+  (TCP/IP) take the time as an argument, return what to send and when to wake them next, and never sleep. The state
+  machine needs no resources; the program around it uses a `Clock` to wait for the deadline, and a test uses a
+  `TestClock` to run through hours of timers at once.
+- **Libraries that call traits the application implements.** delta-kernel-rs's `Engine` and rustls's time and
+  randomness providers work this way: the library runs a chain of steps that depend on each other and calls back for
+  each read, write, or timestamp. That's the shape loko's resources serve: the library takes
+  `&(impl Store + Clock + Random)`, and the application chooses the implementations.
+
+Choose the first for a protocol that reacts to packets and timers, the second for a sequence of reads and writes where
+each depends on the last. The first, with loko at the edge:
+
+```rust
+use std::time::{Duration, SystemTime};
+
+use loko::{Clock, TestPlatform};
+
+/// Sends a heartbeat every 30 seconds. It knows nothing of clocks or sockets: the time comes in as an
+/// argument, and the next deadline goes out.
+struct Heartbeat {
+    next: SystemTime,
+}
+
+impl Heartbeat {
+    fn deadline(&self) -> SystemTime {
+        self.next
+    }
+
+    /// Whether to send a heartbeat at `now`.
+    fn on_time(&mut self, now: SystemTime) -> bool {
+        if now < self.next {
+            return false;
+        }
+        self.next = now + Duration::from_secs(30);
+        true
+    }
+}
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    // The edge owns the waiting: TokioPlatform in a program, TestPlatform here.
+    let clock = TestPlatform::new();
+    let mut heartbeat = Heartbeat { next: clock.now() };
+    let mut sent = 0;
+    for _ in 0..3 {
+        let wait = heartbeat.deadline().duration_since(clock.now()).unwrap_or_default();
+        clock.sleep(wait).await;
+        if heartbeat.on_time(clock.now()) {
+            sent += 1;
+        }
+    }
+    assert_eq!((sent, clock.now_ms()), (3, 60_000), "three heartbeats in a minute of test time");
+}
+```
+
 ## Related crates
 
 [COMPARISON.md](COMPARISON.md) compares loko with forwarding macros (delegate, ambassador), dependency-injection crates
