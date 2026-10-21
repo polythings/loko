@@ -26,7 +26,7 @@ every run.
 - **`JsRandom`** (feature `js`, `wasm32-unknown-unknown`): `crypto.getRandomValues` in chunks of at most 65,536
   bytes, falling back to `Math.random` on a host without Web Crypto.
 - **Feature `rand`:** `Mutex<R>` is a `Random` for any `rand_core::Rng`, so a program's existing generator works as a
-  service.
+  resource.
 
 ## Decisions
 

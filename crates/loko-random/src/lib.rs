@@ -1,4 +1,4 @@
-//! loko's `Random` service: random numbers, passed to code instead of drawn from a global source, so
+//! loko's `Random` resource: random numbers, passed to code instead of drawn from a global source, so
 //! tests are repeatable and the same code runs natively and in WebAssembly.
 //!
 //! - [`Random`]: `next_u64` and `fill`.
@@ -29,7 +29,7 @@ pub use system::OsRandom;
 pub use testing::SeededRandom;
 
 /// Random numbers.
-#[loko_macros::service]
+#[loko_macros::resource]
 pub trait Random {
     /// A random number.
     fn next_u64(&self) -> u64;

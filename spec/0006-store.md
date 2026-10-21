@@ -27,6 +27,11 @@ read and write through it.
 - **`Error`:** `NotFound`, `Invalid`, `Unsupported`, and `Store` (the backend's error, as text); `non_exhaustive`.
   Libraries with their own error type convert from it.
 - **`MemoryStore`:** objects in memory, for tests. Clones share the objects.
+- **Wrappers** ([spec 1](0001-resources.md)), each a `Store` around another; they stack:
+  - `CountingStore`: counts the calls of each kind it passes on (`counts()`, `reset()`); clones share the counts.
+  - `ReadOnlyStore`: reads through; `put`, `put_if_absent`, `upload`, and `delete` return `Unsupported`.
+  - `PrefixedStore`: passes on only URIs under its prefix (a `/` is added if missing), refusing the rest and any `.`
+    or `..` segment with `Invalid`. A `delete` with one URI outside deletes nothing.
 - **`ObjectStoreAdapter`** (`loko-object-store`): a `Store` over any `object_store` client, from a client and a root
   URI or from a URL with options (the root keeps the URL's port and drops any credentials). Put-if-absent is
   `PutMode::Create`. An empty range, or one starting past the end, reads as no bytes, as in `MemoryStore`. Listing a
@@ -48,4 +53,4 @@ read and write through it.
 
 - 2026-10-20: built for 0.2. Moved from lakekit (`lakekit-core`'s `Store` and `MemoryStore`, and `lakekit-object-store`).
 - 2026-10-21: review fixes from lakekit#12: `from_url` keeps the port, empty and past-the-end ranges read as no bytes,
-  and listing starts from an offset.
+  and listing starts from an offset. Wrappers `CountingStore`, `ReadOnlyStore`, and `PrefixedStore` added.

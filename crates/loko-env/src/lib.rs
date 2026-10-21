@@ -1,4 +1,4 @@
-//! loko's `Env` service: environment variables, passed to code instead of read from the process, so
+//! loko's `Env` resource: environment variables, passed to code instead of read from the process, so
 //! tests set their own and code in a browser (which has none) gets them from a map.
 //!
 //! - [`Env`]: `var` and `vars`.
@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 /// Environment variables.
-#[loko_macros::service]
+#[loko_macros::resource]
 pub trait Env {
     /// The variable `name`, or `None` if it isn't set (or isn't valid Unicode).
     fn var(&self, name: &str) -> Option<String>;

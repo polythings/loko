@@ -8,12 +8,12 @@ enforce the mechanical rules (see [Checks](#checks)). This guide covers what the
 
 1. **Readable first.** Someone new should understand a function from its name, its signature, and one pass through
    the body.
-2. **One crate per service.** A service's crate holds its trait and its implementations, and depends on no other
-   service's crate, so a library can take just the service it needs. The `loko` crate re-exports them all and holds
+2. **One crate per resource.** A resource's crate holds its trait and its implementations, and depends on no other
+   resource's crate, so a library can take just the resource it needs. The `loko` crate re-exports them all and holds
    what combines them (the platforms).
-3. **Small traits.** A service has the few methods its callers need, and provided methods for what follows from them
+3. **Small traits.** A resource has the few methods its callers need, and provided methods for what follows from them
    (`now_ms` from `now`). Implementations are where the variety goes.
-4. **Every target.** Each service has a test implementation that runs anywhere, a system one where there is a system
+4. **Every target.** Each resource has a test implementation that runs anywhere, a system one where there is a system
    (native and WASI), and a JavaScript one for `wasm32-unknown-unknown` where it makes sense.
 5. **One definition of each thing.** Before writing a helper, constant, or type, look for an existing one.
 6. **Behaviour, spec, and tests change together.** A change users can see updates its spec, adds or updates tests, and
@@ -38,12 +38,14 @@ we took.
 
 ## Rust
 
-- **Services:** a trait marked `#[loko_macros::service]`, methods on `&self`, async methods returning `impl Future`
+- **Resources:** a trait marked `#[loko_macros::resource]`, methods on `&self`, async methods returning `impl Future`
   without `Send`. Implementations that hold state share it between clones (`Arc<Mutex<…>>`).
 - **Errors:** what the platform gives (`io::Result` for the console), or the crate's own `non_exhaustive` error enum
   (`loko_store::Error`). No `unwrap()` outside tests; a poisoned lock is recovered, not a panic.
 - **Layout:** the trait in `lib.rs`, and each implementation in a module named for where it runs: `testing.rs`,
   `system.rs` (native and WASI), `js.rs`, or a runtime's (`tokio_clock.rs`). Each module has its own tests.
+  A wrapper gets a module named for what it does (`offset.rs`, `counting.rs`) and is written with
+  `#[loko_macros::wraps]`.
 - **Targets:** a module that only builds on some targets is gated once, on its `mod` line and its `pub use`:
   JavaScript code under `#[cfg(all(feature = "js", target_arch = "wasm32", target_os = "unknown"))]`, system code under
   `#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]`.

@@ -114,17 +114,7 @@ impl Store for MemoryStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Runs a future that is ready at once, as the memory store's are.
-    fn now<F: Future>(f: F) -> F::Output {
-        let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
-        let mut f = std::pin::pin!(f);
-        loop {
-            if let std::task::Poll::Ready(v) = f.as_mut().poll(&mut cx) {
-                return v;
-            }
-        }
-    }
+    use crate::now;
 
     #[test]
     fn objects_round_trip() {

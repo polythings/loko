@@ -1,6 +1,6 @@
 # loko-store
 
-[loko](https://github.com/polythings/loko)'s `Store` service: objects by absolute URI, passed to code instead of
+[loko](https://github.com/polythings/loko)'s `Store` resource: objects by absolute URI, passed to code instead of
 reached through a particular client, so the same code works over S3, a local directory, memory, or a JavaScript
 binding.
 
@@ -9,6 +9,8 @@ binding.
   (missing objects are not an error). The futures aren't required to be `Send`, so a store can wrap JavaScript
   promises.
 - `MemoryStore`: objects in memory, for tests. Clones share the objects.
+- Wrappers, each a `Store` around another: `CountingStore` counts calls, `ReadOnlyStore` refuses writes, and
+  `PrefixedStore` passes on only URIs under a prefix. They stack.
 - `Error`: `NotFound`, `Invalid`, `Unsupported`, and `Store` (the backend's error, as text).
 - [`loko-object-store`](https://crates.io/crates/loko-object-store) implements `Store` over an `object_store` client.
 

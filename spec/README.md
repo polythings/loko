@@ -18,7 +18,7 @@ loko's design, laid out like lakekit's, Timelake's, and lakeglass's. Start here,
 
 ## Writing and changing a spec
 
-- **When:** anything beyond a small fix gets a spec, or a change to one, agreed before it is built. A new service is
+- **When:** anything beyond a small fix gets a spec, or a change to one, agreed before it is built. A new resource is
   a new spec.
 - **New spec:** copy [TEMPLATE.md](TEMPLATE.md) to `NNNN-short-name.md` with the next free number (numbers are never
   reused), and add it to a milestone and to the index below.
@@ -29,12 +29,12 @@ loko's design, laid out like lakekit's, Timelake's, and lakeglass's. Start here,
 
 ## Index
 
-7 specs: 7 done. Decisions D1–D15.
+7 specs: 7 done. Decisions D1–D18.
 
 | # | Spec | Status | Updated |
 |---:|---|---|---|
-| 1 | [Services and the derive](0001-services.md) | Done | 2026-10-20 |
-| 2 | [Clock](0002-clock.md) | Done | 2026-10-20 |
+| 1 | [Resources, Provides, and wrappers](0001-resources.md) | Done | 2026-10-21 |
+| 2 | [Clock](0002-clock.md) | Done | 2026-10-21 |
 | 3 | [Random](0003-random.md) | Done | 2026-10-20 |
 | 4 | [Env](0004-env.md) | Done | 2026-10-20 |
 | 5 | [Console](0005-console.md) | Done | 2026-10-20 |
@@ -45,4 +45,4 @@ loko's design, laid out like lakekit's, Timelake's, and lakeglass's. Start here,
 
 | Milestone | Status |
 |---|---|
-| [0.2: Services for the polythings projects](milestones/v0-2.md) | In progress |
+| [0.2: Resources for the polythings projects](milestones/v0-2.md) | In progress |

@@ -1,29 +1,29 @@
-//! Platforms: one of each service, ready to pass. A platform is each service it holds; a program
-//! that needs more (a `Store`, its own services) puts a platform in a `#[derive(Services)]` struct.
+//! Platforms: one of each resource, ready to pass. A platform is each resource it holds; a program
+//! that needs more (a `Store`, its own resources) puts a platform in a `#[derive(Provides)]` struct.
 
 use crate::clock::{Clock, TestClock};
 use crate::console::{Console, TestConsole};
 use crate::env::{Env, MapEnv};
 use crate::random::{Random, SeededRandom};
-use crate::{HasClock, HasConsole, HasEnv, HasRandom, Services};
+use crate::{HasClock, HasConsole, HasEnv, HasRandom, Provides};
 
-/// Services for tests: a [`TestClock`] at the Unix epoch, a [`SeededRandom`] with seed 0, an empty
+/// Resources for tests: a [`TestClock`] at the Unix epoch, a [`SeededRandom`] with seed 0, an empty
 /// [`MapEnv`], and a [`TestConsole`] that records lines. Clones share the clock, the generator, and
 /// the console; the fields are public so a test can set them up and look at them.
-#[derive(Clone, Debug, Default, Services)]
+#[derive(Clone, Debug, Default, Provides)]
 #[non_exhaustive]
 pub struct TestPlatform {
     /// The time, moved by the test.
-    #[service(Clock)]
+    #[provides(Clock)]
     pub clock: TestClock,
     /// Random numbers, the same on every run.
-    #[service(Random)]
+    #[provides(Random)]
     pub random: SeededRandom,
     /// Environment variables set by the test.
-    #[service(Env)]
+    #[provides(Env)]
     pub env: MapEnv,
     /// The lines printed.
-    #[service(Console)]
+    #[provides(Console)]
     pub console: TestConsole,
 }
 
@@ -55,66 +55,66 @@ impl TestPlatform {
     }
 }
 
-/// The system's services for programs without an async runtime (feature `getrandom`, native
+/// The system's resources for programs without an async runtime (feature `getrandom`, native
 /// targets and WASI): [`StdClock`](crate::clock::StdClock), whose `sleep` blocks the thread,
 /// [`OsRandom`](crate::random::OsRandom), [`SystemEnv`](crate::env::SystemEnv), and
 /// [`StdConsole`](crate::console::StdConsole).
 #[cfg(all(feature = "getrandom", not(all(target_arch = "wasm32", target_os = "unknown"))))]
-#[derive(Clone, Copy, Debug, Default, Services)]
+#[derive(Clone, Copy, Debug, Default, Provides)]
 #[non_exhaustive]
 pub struct StdPlatform {
     /// The system clock.
-    #[service(Clock)]
+    #[provides(Clock)]
     pub clock: crate::clock::StdClock,
     /// The operating system's generator.
-    #[service(Random)]
+    #[provides(Random)]
     pub random: crate::random::OsRandom,
     /// The process's environment variables.
-    #[service(Env)]
+    #[provides(Env)]
     pub env: crate::env::SystemEnv,
     /// Standard output and standard error.
-    #[service(Console)]
+    #[provides(Console)]
     pub console: crate::console::StdConsole,
 }
 
-/// The system's services under tokio (feature `tokio`, native targets): [`StdPlatform`] with
+/// The system's resources under tokio (feature `tokio`, native targets): [`StdPlatform`] with
 /// [`TokioClock`](crate::clock::TokioClock), whose `sleep` is tokio's timer.
 #[cfg(all(feature = "tokio", not(target_arch = "wasm32")))]
-#[derive(Clone, Copy, Debug, Default, Services)]
+#[derive(Clone, Copy, Debug, Default, Provides)]
 #[non_exhaustive]
 pub struct TokioPlatform {
     /// The system clock and tokio's timer.
-    #[service(Clock)]
+    #[provides(Clock)]
     pub clock: crate::clock::TokioClock,
     /// The operating system's generator.
-    #[service(Random)]
+    #[provides(Random)]
     pub random: crate::random::OsRandom,
     /// The process's environment variables.
-    #[service(Env)]
+    #[provides(Env)]
     pub env: crate::env::SystemEnv,
     /// Standard output and standard error.
-    #[service(Console)]
+    #[provides(Console)]
     pub console: crate::console::StdConsole,
 }
 
-/// The JavaScript host's services (feature `js`, `wasm32-unknown-unknown`): [`JsClock`](crate::clock::JsClock),
+/// The JavaScript host's resources (feature `js`, `wasm32-unknown-unknown`): [`JsClock`](crate::clock::JsClock),
 /// [`JsRandom`](crate::random::JsRandom), a [`MapEnv`] (JavaScript hosts have no common environment;
 /// set the variables the program reads), and [`JsConsole`](crate::console::JsConsole).
 #[cfg(all(feature = "js", all(target_arch = "wasm32", target_os = "unknown")))]
-#[derive(Clone, Debug, Default, Services)]
+#[derive(Clone, Debug, Default, Provides)]
 #[non_exhaustive]
 pub struct JsPlatform {
     /// `Date.now` and `setTimeout`.
-    #[service(Clock)]
+    #[provides(Clock)]
     pub clock: crate::clock::JsClock,
     /// `crypto.getRandomValues`.
-    #[service(Random)]
+    #[provides(Random)]
     pub random: crate::random::JsRandom,
     /// Variables set by the program.
-    #[service(Env)]
+    #[provides(Env)]
     pub env: MapEnv,
     /// `console.log` and `console.error`.
-    #[service(Console)]
+    #[provides(Console)]
     pub console: crate::console::JsConsole,
 }
 
@@ -125,7 +125,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_test_platform_is_each_service() {
+    fn a_test_platform_is_each_resource() {
         let platform = TestPlatform::new().at_ms(1_000).seeded(0).with_var("REGION", "us-east-2");
         platform.clock.advance(Duration::from_millis(500));
         assert_eq!(platform.now_ms(), 1_500);

@@ -15,7 +15,7 @@ pub struct Listed {
 /// Paths are absolute URIs, as table metadata records them.
 ///
 /// The futures aren't required to be `Send`, so a store can wrap JavaScript promises.
-#[loko_macros::service]
+#[loko_macros::resource]
 pub trait Store {
     /// A multipart upload in progress.
     type Upload: Upload;

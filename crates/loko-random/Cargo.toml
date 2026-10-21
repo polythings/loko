@@ -1,6 +1,6 @@
 [package]
 name = "loko-random"
-description = "loko's Random service: random numbers, with seeded, operating-system, and JavaScript sources"
+description = "loko's Random resource: random numbers, with seeded, operating-system, and JavaScript sources"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true

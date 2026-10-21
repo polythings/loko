@@ -1,6 +1,6 @@
 # loko-console
 
-[loko](https://github.com/polythings/loko)'s `Console` service: lines to standard output and standard error, passed to
+[loko](https://github.com/polythings/loko)'s `Console` resource: lines to standard output and standard error, passed to
 code instead of printed directly, so tests read what was printed and code in a browser logs to its console.
 
 - `Console`: `print_line` and `print_error_line`.

@@ -1,6 +1,6 @@
 [package]
 name = "loko-clock"
-description = "loko's Clock service: the time and a timer, with test, tokio, and JavaScript clocks"
+description = "loko's Clock resource: the time and a timer, with test, tokio, and JavaScript clocks"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true

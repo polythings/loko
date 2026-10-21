@@ -1,32 +1,37 @@
-//! loko's macros, used by its service crates and re-exported by `loko`.
+//! loko's macros, used by its resource crates and re-exported by `loko`.
 //!
-//! - `#[service]` on a trait `X` adds a trait `HasX` (a type that holds an `X`) and implements `X`
-//!   for every `HasX` by forwarding each method to the held service.
-//! - `#[derive(Services)]` implements `HasX` for a struct's fields marked `#[service(X, …)]`, so the
-//!   struct is every service its fields provide.
+//! - `#[resource]` on a trait `X` adds a trait `HasX` (a type that holds an `X`) and implements `X`
+//!   for every `HasX`. Each method goes through a `HasX` method (`wrapped_<method>`) that forwards
+//!   to the held resource unless the implementation says otherwise.
+//! - `#[derive(Provides)]` implements `HasX` for a struct's fields marked `#[provides(X, …)]`, so the
+//!   struct is every resource its fields provide.
+//! - `#[wraps(field: Type)]` on an `impl X for Wrapper` implements `HasX` instead: the methods
+//!   written replace the forwarding ones, and the rest forward to the field.
 //!
 //! The `HasX` traits follow RIO's "Has" type classes, and choosing a field to forward to with a derive
 //! follows ambassador (`PRIOR_ART.md`).
 
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{format_ident, quote};
+use quote::{ToTokens, format_ident, quote};
+use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
+use syn::visit_mut::VisitMut;
 use syn::{
-    Data, DeriveInput, Error, FnArg, Ident, ItemTrait, Pat, PatIdent, Path, ReturnType, Signature, Token, TraitItem,
-    TraitItemFn, parse_macro_input, parse_quote,
+    Data, DeriveInput, Error, FnArg, Ident, ImplItem, ItemImpl, ItemTrait, Member, Pat, PatIdent, Path, ReturnType,
+    Signature, Token, TraitItem, TraitItemFn, Type, TypePath, parse_macro_input, parse_quote,
 };
 
-/// Makes a trait a loko service: adds `Has<Trait>` and implements the trait for every type that has
-/// one, forwarding each method. Methods must take `&self`; the trait can't be generic.
+/// Makes a trait a loko resource: adds `Has<Trait>` and implements the trait for every type that
+/// has one. Methods must take `&self`; the trait can't be generic.
 #[proc_macro_attribute]
-pub fn service(args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn resource(args: TokenStream, input: TokenStream) -> TokenStream {
     if !args.is_empty() {
-        return Error::new(Span::call_site(), "#[service] takes no arguments").to_compile_error().into();
+        return Error::new(Span::call_site(), "#[resource] takes no arguments").to_compile_error().into();
     }
     let item = parse_macro_input!(input as ItemTrait);
-    match expand_service(&item) {
+    match expand_resource(&item) {
         Ok(extra) => quote! { #item #extra }.into(),
         Err(e) => {
             let e = e.to_compile_error();
@@ -35,7 +40,7 @@ pub fn service(args: TokenStream, input: TokenStream) -> TokenStream {
     }
 }
 
-/// The accessor of service `name`: `Clock` → `clock`, `ObjectStore` → `object_store`.
+/// The accessor of resource `name`: `Clock` → `clock`, `ObjectStore` → `object_store`.
 fn accessor(name: &Ident) -> Ident {
     let mut snake = String::new();
     for (i, c) in name.to_string().chars().enumerate() {
@@ -51,39 +56,116 @@ fn accessor(name: &Ident) -> Ident {
     Ident::new(&snake, name.span())
 }
 
-fn expand_service(item: &ItemTrait) -> syn::Result<TokenStream2> {
+/// The `HasX` method behind method `method` of resource `X`.
+fn wrapped(method: &Ident) -> Ident {
+    format_ident!("wrapped_{}", method)
+}
+
+/// `Has<last segment>`, at the same path: `loko::Clock` → `loko::HasClock`.
+fn has_path(resource: &Path) -> syn::Result<(Path, Ident)> {
+    let name = resource.segments.last().ok_or_else(|| Error::new(resource.span(), "a resource path"))?.ident.clone();
+    let mut has = resource.clone();
+    if let Some(last) = has.segments.last_mut() {
+        last.ident = format_ident!("Has{}", name);
+        last.arguments = syn::PathArguments::None;
+    }
+    Ok((has, name))
+}
+
+/// Rewrites `Self::Assoc` to the held resource's `Assoc`, for signatures moved into `HasX`, where
+/// `Self` is the holder. `Self::X` (the `HasX` type itself) stays.
+struct HeldAssoc<'a> {
+    has: &'a Path,
+    name: &'a Ident,
+}
+
+impl VisitMut for HeldAssoc<'_> {
+    fn visit_type_path_mut(&mut self, path: &mut TypePath) {
+        let segments = &path.path.segments;
+        if path.qself.is_none()
+            && segments.len() >= 2
+            && segments[0].ident == "Self"
+            && segments[0].arguments.is_none()
+            && segments[1].ident != *self.name
+        {
+            let (has, name) = (self.has, self.name);
+            let rest: Vec<_> = segments.iter().skip(1).collect();
+            *path = parse_quote! { <<Self as #has>::#name as #name>::#(#rest)::* };
+        }
+        syn::visit_mut::visit_type_path_mut(self, path);
+    }
+}
+
+/// Names the arguments of `sig` (after `&self`) `arg0`, `arg1`, …, so a body can pass them on.
+fn name_arguments(sig: &mut Signature) -> syn::Result<Vec<Ident>> {
+    match sig.inputs.first() {
+        Some(FnArg::Receiver(r)) if r.reference.is_some() && r.mutability.is_none() => {}
+        _ => return Err(Error::new(sig.span(), "loko resource methods take `&self`")),
+    }
+    let mut args = vec![];
+    for (i, input) in sig.inputs.iter_mut().skip(1).enumerate() {
+        let FnArg::Typed(typed) = input else { continue };
+        let ident = format_ident!("arg{}", i);
+        *typed.pat =
+            Pat::Ident(PatIdent { attrs: vec![], by_ref: None, mutability: None, ident: ident.clone(), subpat: None });
+        args.push(ident);
+    }
+    Ok(args)
+}
+
+/// `sig { call }`, awaiting the call in an async method.
+fn method(sig: &Signature, call: &TokenStream2) -> TokenStream2 {
+    let body = if sig.asyncness.is_some() {
+        quote! { #call.await }
+    } else {
+        call.clone()
+    };
+    match sig.output {
+        ReturnType::Default => quote! { #[inline] #sig { #body; } },
+        ReturnType::Type(..) => quote! { #[inline] #sig { #body } },
+    }
+}
+
+fn expand_resource(item: &ItemTrait) -> syn::Result<TokenStream2> {
     if !item.generics.params.is_empty() {
-        return Err(Error::new(item.generics.span(), "a loko service can't be generic"));
+        return Err(Error::new(item.generics.span(), "a loko resource can't be generic"));
     }
     if item.unsafety.is_some() {
-        return Err(Error::new(item.span(), "a loko service can't be an unsafe trait"));
+        return Err(Error::new(item.span(), "a loko resource can't be an unsafe trait"));
     }
     let vis = &item.vis;
     let name = &item.ident;
-    let has = format_ident!("Has{}", name);
+    let has: Path = format_ident!("Has{}", name).into();
     let get = accessor(name);
-    let supertraits = &item.supertraits;
     let held = quote! { <<T as #has>::#name as #name> };
 
-    let mut items = vec![];
+    let (mut has_items, mut impl_items) = (vec![], vec![]);
     for trait_item in &item.items {
         match trait_item {
             TraitItem::Type(t) => {
                 let ident = &t.ident;
                 let (_, ty_generics, where_clause) = t.generics.split_for_impl();
-                items.push(quote! { type #ident #ty_generics = #held::#ident #ty_generics #where_clause; });
+                impl_items.push(quote! { type #ident #ty_generics = #held::#ident #ty_generics #where_clause; });
             }
             TraitItem::Const(c) => {
                 let (ident, ty) = (&c.ident, &c.ty);
-                items.push(quote! { const #ident: #ty = #held::#ident; });
+                impl_items.push(quote! { const #ident: #ty = #held::#ident; });
             }
-            TraitItem::Fn(f) => items.push(forward_fn(f, &held, &get)?),
-            other => return Err(Error::new(other.span(), "loko services can hold types, constants, and methods")),
+            TraitItem::Fn(f) => {
+                let (has_item, impl_item) = forward_fn(f, &has, name, &get)?;
+                has_items.push(has_item);
+                impl_items.push(impl_item);
+            }
+            other => return Err(Error::new(other.span(), "loko resources can hold types, constants, and methods")),
         }
     }
 
-    let doc = format!("A type that holds a [`{name}`], and so is one (see `#[loko::service]`).");
+    let doc = format!(
+        "A type that holds a [`{name}`], and so is one: `#[derive(Provides)]` implements this for a field, \
+         and `#[loko::wraps]` for a wrapper that changes some methods."
+    );
     let get_doc = format!("The [`{name}`] this holds.");
+    let supertraits = &item.supertraits;
     let bound = if supertraits.is_empty() {
         quote! {}
     } else {
@@ -92,61 +174,54 @@ fn expand_service(item: &ItemTrait) -> syn::Result<TokenStream2> {
     Ok(quote! {
         #[doc = #doc]
         #vis trait #has {
-            /// The service held.
+            /// The resource held.
             type #name: #name;
             #[doc = #get_doc]
             fn #get(&self) -> &Self::#name;
+            #(#has_items)*
         }
 
         #[automatically_derived]
         impl<T: #has #bound> #name for T {
-            #(#items)*
+            #(#impl_items)*
         }
     })
 }
 
-/// A method of the blanket impl: the trait's signature, calling the held service's method.
-fn forward_fn(f: &TraitItemFn, held: &TokenStream2, get: &Ident) -> syn::Result<TokenStream2> {
-    let mut sig: Signature = f.sig.clone();
-    match sig.inputs.first() {
-        Some(FnArg::Receiver(r)) if r.reference.is_some() && r.mutability.is_none() => {}
-        _ => return Err(Error::new(sig.span(), "loko service methods take `&self`")),
-    }
-    let mut args = vec![];
-    for (i, input) in sig.inputs.iter_mut().skip(1).enumerate() {
-        let FnArg::Typed(typed) = input else { continue };
-        let ident = format_ident!("__loko_arg{}", i);
-        *typed.pat =
-            Pat::Ident(PatIdent { attrs: vec![], by_ref: None, mutability: None, ident: ident.clone(), subpat: None });
-        args.push(ident);
-    }
-    let method = &sig.ident;
-    let call = quote! { #held::#method(self.#get(), #(#args),*) };
-    let body = if sig.asyncness.is_some() {
-        quote! { #call.await }
-    } else {
-        call
-    };
-    Ok(match sig.output {
-        ReturnType::Default => quote! { #[inline] #sig { #body; } },
-        ReturnType::Type(..) => quote! { #[inline] #sig { #body } },
-    })
+/// For a method of the resource: its forwarding method in `HasX` (`wrapped_<method>`, calling the
+/// held resource), and its method in the blanket impl (calling the `HasX` one).
+fn forward_fn(f: &TraitItemFn, has: &Path, name: &Ident, get: &Ident) -> syn::Result<(TokenStream2, TokenStream2)> {
+    let mut sig = f.sig.clone();
+    let args = name_arguments(&mut sig)?;
+    let ident = sig.ident.clone();
+    let wrapped_ident = wrapped(&ident);
+
+    let mut has_sig = sig.clone();
+    has_sig.ident = wrapped_ident.clone();
+    HeldAssoc { has, name }.visit_signature_mut(&mut has_sig);
+    let has_call = quote! { <<Self as #has>::#name as #name>::#ident(#has::#get(self), #(#args),*) };
+    let doc =
+        format!("Forwards [`{name}::{ident}`] to the held resource; a `#[loko::wraps]` implementation may replace it.");
+    let has_method = method(&has_sig, &has_call);
+
+    let impl_call = quote! { <T as #has>::#wrapped_ident(self, #(#args),*) };
+    Ok((quote! { #[doc = #doc] #[doc(hidden)] #has_method }, method(&sig, &impl_call)))
 }
 
-/// Implements `Has<Service>` for each `#[service(Service, …)]` on a field, so the struct is each of
-/// those services, forwarding to the field.
-#[proc_macro_derive(Services, attributes(service))]
-pub fn derive_services(input: TokenStream) -> TokenStream {
+/// Implements `Has<Resource>` for each `#[provides(Resource, …)]` on a field, so the struct is each
+/// of those resources, forwarding to the field.
+#[proc_macro_derive(Provides, attributes(provides))]
+pub fn derive_provides(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    match expand_services(&input) {
+    match expand_provides(&input) {
         Ok(tokens) => tokens.into(),
         Err(e) => e.to_compile_error().into(),
     }
 }
 
-fn expand_services(input: &DeriveInput) -> syn::Result<TokenStream2> {
+fn expand_provides(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let Data::Struct(data) = &input.data else {
-        return Err(Error::new(input.span(), "#[derive(Services)] is for structs"));
+        return Err(Error::new(input.span(), "#[derive(Provides)] is for structs"));
     };
     let name = &input.ident;
     let (impl_generics, ty_generics, _) = input.generics.split_for_impl();
@@ -155,24 +230,19 @@ fn expand_services(input: &DeriveInput) -> syn::Result<TokenStream2> {
         let index = syn::Index::from(i);
         let access = field.ident.as_ref().map_or_else(|| quote! { #index }, |ident| quote! { #ident });
         let ty = &field.ty;
-        for attr in field.attrs.iter().filter(|a| a.path().is_ident("service")) {
-            let services = attr.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)?;
-            for service in services {
-                let last = service.segments.last().ok_or_else(|| Error::new(service.span(), "a service path"))?;
-                let service_name = last.ident.clone();
-                let mut has = service.clone();
-                if let Some(last) = has.segments.last_mut() {
-                    last.ident = format_ident!("Has{}", service_name);
-                }
-                let get = accessor(&service_name);
-                // A generic field type must be the service it provides.
+        for attr in field.attrs.iter().filter(|a| a.path().is_ident("provides")) {
+            let resources = attr.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)?;
+            for resource in resources {
+                let (has, resource_name) = has_path(&resource)?;
+                let get = accessor(&resource_name);
+                // A generic field type must be the resource it provides.
                 let mut generics = input.generics.clone();
-                generics.make_where_clause().predicates.push(parse_quote! { #ty: #service });
+                generics.make_where_clause().predicates.push(parse_quote! { #ty: #resource });
                 let where_clause = &generics.where_clause;
                 impls.push(quote! {
                     #[automatically_derived]
                     impl #impl_generics #has for #name #ty_generics #where_clause {
-                        type #service_name = #ty;
+                        type #resource_name = #ty;
                         #[inline]
                         fn #get(&self) -> &#ty {
                             &self.#access
@@ -183,9 +253,70 @@ fn expand_services(input: &DeriveInput) -> syn::Result<TokenStream2> {
         }
     }
     if impls.is_empty() {
-        return Err(Error::new(input.span(), "no field has #[service(…)]"));
+        return Err(Error::new(input.span(), "no field has #[provides(…)]"));
     }
     Ok(quote! { #(#impls)* })
+}
+
+/// `field: Type`, the arguments of `#[wraps]`.
+struct WrapsArgs {
+    field: Member,
+    ty: Type,
+}
+
+impl Parse for WrapsArgs {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        let field = input.parse()?;
+        input.parse::<Token![:]>()?;
+        Ok(Self { field, ty: input.parse()? })
+    }
+}
+
+/// Makes `impl Resource for Wrapper` a wrapper around a field: `#[wraps(inner: S)]`. The methods
+/// written replace the resource's; the others forward to `self.inner`. A wrapper keeps the inner
+/// resource's associated types.
+#[proc_macro_attribute]
+pub fn wraps(args: TokenStream, input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(args as WrapsArgs);
+    let item = parse_macro_input!(input as ItemImpl);
+    match expand_wraps(&args, &item) {
+        Ok(tokens) => tokens.into(),
+        Err(e) => e.to_compile_error().into(),
+    }
+}
+
+fn expand_wraps(args: &WrapsArgs, item: &ItemImpl) -> syn::Result<TokenStream2> {
+    let Some((None, resource, _)) = &item.trait_ else {
+        return Err(Error::new(item.span(), "#[wraps] goes on an `impl Resource for Wrapper`"));
+    };
+    let (has, name) = has_path(resource)?;
+    let get = accessor(&name);
+    let mut methods = vec![];
+    for impl_item in &item.items {
+        let ImplItem::Fn(f) = impl_item else {
+            return Err(Error::new(
+                impl_item.span(),
+                "a wrapper only replaces methods; it keeps the inner resource's types and constants",
+            ));
+        };
+        let mut f = f.clone();
+        f.sig.ident = wrapped(&f.sig.ident);
+        HeldAssoc { has: &has, name: &name }.visit_signature_mut(&mut f.sig);
+        methods.push(f.into_token_stream());
+    }
+    let (impl_generics, _, where_clause) = item.generics.split_for_impl();
+    let (attrs, self_ty, (field, ty)) = (&item.attrs, &item.self_ty, (&args.field, &args.ty));
+    Ok(quote! {
+        #(#attrs)*
+        impl #impl_generics #has for #self_ty #where_clause {
+            type #name = #ty;
+            #[inline]
+            fn #get(&self) -> &#ty {
+                &self.#field
+            }
+            #(#methods)*
+        }
+    })
 }
 
 #[cfg(test)]
@@ -201,9 +332,25 @@ mod tests {
     }
 
     #[test]
-    fn services_parse() {
+    fn resources_parse() {
         let parser = Punctuated::<Path, Token![,]>::parse_terminated;
         let paths = parser.parse_str("Clock, loko::Random").unwrap();
         assert_eq!(paths.len(), 2);
+        let (has, name) = has_path(&paths[1]).unwrap();
+        assert_eq!(
+            (has.to_token_stream().to_string(), name.to_string()),
+            ("loko :: HasRandom".into(), "Random".into())
+        );
+    }
+
+    #[test]
+    fn self_types_become_the_held_resources() {
+        let mut sig: Signature = parse_quote! { fn upload(&self) -> Result<Self::Upload> };
+        let has: Path = parse_quote! { HasStore };
+        HeldAssoc { has: &has, name: &format_ident!("Store") }.visit_signature_mut(&mut sig);
+        assert_eq!(
+            sig.output.to_token_stream().to_string(),
+            "-> Result < < < Self as HasStore > :: Store as Store > :: Upload >"
+        );
     }
 }

@@ -1,4 +1,4 @@
-//! loko's `Console` service: lines to standard output and standard error, passed to code instead of
+//! loko's `Console` resource: lines to standard output and standard error, passed to code instead of
 //! printed directly, so tests read what was printed and code in a browser logs to its console.
 //!
 //! - [`Console`]: `print_line` and `print_error_line`.
@@ -28,7 +28,7 @@ pub use system::StdConsole;
 pub use testing::TestConsole;
 
 /// Lines of text to standard output and standard error.
-#[loko_macros::service]
+#[loko_macros::resource]
 pub trait Console {
     /// Writes `line` and a newline to standard output.
     fn print_line(&self, line: &str) -> io::Result<()>;

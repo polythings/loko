@@ -1,14 +1,14 @@
-//! Services passed to code instead of reached for: the time, randomness, environment variables, the
-//! console, and object storage. Code takes `&impl Clock` (or `&(impl Clock + Random)`, …), the
+//! Resources passed to code instead of reached for: the time, randomness, environment variables,
+//! the console, and object storage. Code takes `&impl Clock` (or `&(impl Clock + Random)`, …), the
 //! program passes a platform, and tests pass a [`TestPlatform`] they control. The same code runs
 //! natively and in WebAssembly.
 //!
-//! - Services: [`clock`], [`random`], [`env`], [`console`], and `store` (feature `store`), each a
+//! - Resources: [`clock`], [`random`], [`env`](mod@env), [`console`], and `store` (feature `store`), each a
 //!   trait with test, native, and JavaScript implementations. The traits are also at the root.
 //! - Platforms: [`TestPlatform`], `StdPlatform`, `TokioPlatform`, and `JsPlatform` bundle one of each.
-//! - [`service`] makes a trait a service, and [`Services`] makes a struct each service its fields
-//!   provide, so new services and new bundles work like loko's own. [`prelude`] brings in the
-//!   services with the `HasClock`-style traits the derive names.
+//! - [`resource`] makes a trait a resource, [`Provides`] makes a struct each resource its fields
+//!   provide, and [`wraps`] makes a wrapper that changes some of a resource's methods and forwards
+//!   the rest. [`prelude`] brings in the resources with the `HasClock`-style traits these name.
 //!
 //! ```
 //! use std::time::Duration;
@@ -16,8 +16,8 @@
 //! use loko::{Clock, Random, TestPlatform};
 //!
 //! /// An ID from the time and a random suffix.
-//! fn id(services: &(impl Clock + Random)) -> String {
-//!     format!("{}-{:04x}", services.now_ms(), services.next_u64() & 0xffff)
+//! fn id(resources: &(impl Clock + Random)) -> String {
+//!     format!("{}-{:04x}", resources.now_ms(), resources.next_u64() & 0xffff)
 //! }
 //!
 //! let platform = TestPlatform::default();
@@ -25,18 +25,18 @@
 //! assert_eq!(id(&platform), "1000-cdaf");
 //! ```
 //!
-//! A program bundles the services it needs, its own among them:
+//! A program bundles the resources it needs, its own among them:
 //!
 //! ```
 //! # #[cfg(feature = "store")] {
 //! use loko::prelude::*;
 //! use loko::store::MemoryStore;
 //!
-//! #[derive(Services)]
+//! #[derive(Provides)]
 //! struct App {
-//!     #[service(Store)]
+//!     #[provides(Store)]
 //!     store: MemoryStore,
-//!     #[service(Clock, Random)]
+//!     #[provides(Clock, Random)]
 //!     platform: TestPlatform,
 //! }
 //!
@@ -52,7 +52,7 @@ pub use loko_console as console;
 pub use loko_console::{Console, HasConsole};
 pub use loko_env as env;
 pub use loko_env::{Env, HasEnv};
-pub use loko_macros::{Services, service};
+pub use loko_macros::{Provides, resource, wraps};
 #[cfg(feature = "object-store")]
 pub use loko_object_store as object_store;
 pub use loko_random as random;
@@ -64,8 +64,8 @@ pub use loko_store::{HasStore, Store};
 
 mod platform;
 
-/// The services, the `Has` traits that `#[derive(Services)]` names next to them, the macros, and
-/// the platforms.
+/// The resources, the `Has` traits that `#[derive(Provides)]` and `#[wraps]` name next to them, the
+/// macros, and the platforms.
 pub mod prelude {
     #[cfg(all(feature = "js", all(target_arch = "wasm32", target_os = "unknown")))]
     pub use crate::JsPlatform;
@@ -74,7 +74,7 @@ pub mod prelude {
     #[cfg(all(feature = "tokio", not(target_arch = "wasm32")))]
     pub use crate::TokioPlatform;
     pub use crate::{
-        Clock, Console, Env, HasClock, HasConsole, HasEnv, HasRandom, Random, Services, TestPlatform, service,
+        Clock, Console, Env, HasClock, HasConsole, HasEnv, HasRandom, Provides, Random, TestPlatform, resource, wraps,
     };
     #[cfg(feature = "store")]
     pub use crate::{HasStore, Store};

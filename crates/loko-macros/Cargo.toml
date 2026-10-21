@@ -1,6 +1,6 @@
 [package]
 name = "loko-macros"
-description = "loko's macros: #[service] makes a trait a service, #[derive(Services)] wires services into a struct"
+description = "loko's macros: #[resource] makes a trait a resource, #[derive(Provides)] wires resources into a struct"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true

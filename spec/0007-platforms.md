@@ -14,9 +14,9 @@ issues: [3]
 
 ## Summary
 
-A platform is one of each of `Clock`, `Random`, `Env`, and `Console`, ready to pass: the test services, the
+A platform is one of each of `Clock`, `Random`, `Env`, and `Console`, ready to pass: the test resources, the
 system's, the system's under tokio, or a JavaScript host's. A program that needs more puts a platform in its own
-`#[derive(Services)]` bundle.
+`#[derive(Provides)]` bundle.
 
 ## Design
 
@@ -27,9 +27,9 @@ system's, the system's under tokio, or a JavaScript host's. A program that needs
 | `TokioPlatform` | `TokioClock` | `OsRandom` | `SystemEnv` | `StdConsole` | Native (feature `tokio`) |
 | `JsPlatform` | `JsClock` | `JsRandom` | `MapEnv` | `JsConsole` | `wasm32-unknown-unknown` (feature `js`) |
 
-- Each platform is a struct with public fields, one per service, built with `#[derive(Services)]`, so it is each
-  service and a test can set up and inspect the parts (`platform.clock.advance(…)`, `platform.console.lines()`).
-- The structs are `non_exhaustive`, so a service added later isn't a breaking change; they are built with `default()`
+- Each platform is a struct with public fields, one per resource, built with `#[derive(Provides)]`, so it is each
+  resource and a test can set up and inspect the parts (`platform.clock.advance(…)`, `platform.console.lines()`).
+- The structs are `non_exhaustive`, so a resource added later isn't a breaking change; they are built with `default()`
   (and `TestPlatform`'s `at_ms`, `seeded`, and `with_var`).
 - `Store` is not in a platform: which store a program uses is its own choice.
 

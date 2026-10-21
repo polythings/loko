@@ -1,6 +1,6 @@
 # loko-env
 
-[loko](https://github.com/polythings/loko)'s `Env` service: environment variables, passed to code instead of read from
+[loko](https://github.com/polythings/loko)'s `Env` resource: environment variables, passed to code instead of read from
 the process, so tests set their own and code in a browser (which has none) reads them from a map.
 
 - `Env`: `var` and `vars`.

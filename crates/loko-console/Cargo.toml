@@ -1,6 +1,6 @@
 [package]
 name = "loko-console"
-description = "loko's Console service: lines to standard output and error, captured in tests, or to the JavaScript console"
+description = "loko's Console resource: lines to standard output and error, captured in tests, or to the JavaScript console"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true

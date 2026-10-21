@@ -1,6 +1,6 @@
 [package]
 name = "loko"
-description = "Services passed to code instead of reached for: Clock, Random, Env, Console, and Store, with test, native, and JavaScript implementations"
+description = "Resources passed to code instead of reached for: Clock, Random, Env, Console, and Store, with test, native, and JavaScript implementations"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true
@@ -20,7 +20,7 @@ tokio = ["getrandom", "loko-clock/tokio"]
 js = ["loko-clock/js", "loko-random/js", "loko-console/js"]
 # `Random` for a `Mutex` around any `rand_core` generator.
 rand = ["loko-random/rand"]
-# `loko::store`: the `Store` service and `MemoryStore`.
+# `loko::store`: the `Store` resource and `MemoryStore`.
 store = ["dep:loko-store"]
 # `loko::object_store`: a `Store` over an `object_store` client.
 object-store = ["store", "dep:loko-object-store"]

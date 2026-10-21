@@ -1,6 +1,6 @@
 # loko-random
 
-[loko](https://github.com/polythings/loko)'s `Random` service: random numbers, passed to code instead of drawn from a
+[loko](https://github.com/polythings/loko)'s `Random` resource: random numbers, passed to code instead of drawn from a
 global source, so tests are repeatable and the same code runs natively, under WASI, and in browsers.
 
 - `Random`: `next_u64` and `fill`.
