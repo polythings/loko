@@ -42,6 +42,7 @@ The program passes `StdClock`, `TokioClock`, or `JsClock` in the browser, and `e
 ```toml
 [dependencies]
 loko = { version = "0.2", features = ["tokio", "store"] }
+tokio = { version = "1", features = ["macros", "rt"] } # for the examples' #[tokio::main]
 ```
 
 | Feature | Adds |

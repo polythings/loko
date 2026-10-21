@@ -21,7 +21,8 @@ impl TestClock {
     ///
     /// # Panics
     ///
-    /// If the platform can't hold that time ([`from_ms`]): before the epoch on WASI.
+    /// If the platform can't hold that time ([`from_ms`]): before the epoch on WebAssembly (WASI and
+    /// `wasm32-unknown-unknown`).
     pub fn at_ms(ms: i64) -> Self {
         Self::new(from_ms(ms).expect("a time this platform can hold"))
     }
@@ -65,7 +66,7 @@ mod tests {
         let other = clock.clone();
         other.advance(Duration::from_millis(250));
         assert_eq!(clock.now_ms(), 5_250, "clones share the time");
-        // Times before the epoch exist natively, not on WASI.
+        // Times before the epoch exist natively, not on WebAssembly.
         if let Some(before) = from_ms(-1_500) {
             clock.set(before);
             assert_eq!(clock.now_ms(), -1_500);

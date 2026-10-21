@@ -22,7 +22,7 @@ and skip the waits.
 - **`Clock`:** `now() -> SystemTime`, `now_ms() -> i64` (provided: milliseconds since the Unix epoch, negative before
   it, saturating), and `sleep(Duration) -> impl Future<Output = ()>`.
 - **`from_ms(i64) -> Option<SystemTime>`:** the inverse of `now_ms`, `None` where the platform can't hold the time
-  (before the epoch on WASI).
+  (before the epoch on WebAssembly: WASI and `wasm32-unknown-unknown`).
 - **`TestClock`:** starts where told (`new`, `at_ms`; the Unix epoch by default), moves on `advance` and `set`, and
   on `sleep`, which moves it forward by the sleep and returns at once. Clones share the time.
 - **`StdClock`:** `SystemTime::now`, and a `sleep` that blocks the thread before returning a ready future: for

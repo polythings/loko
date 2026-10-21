@@ -2,8 +2,9 @@
 
 loko does two things:
 
-1. **It ships services.** `Clock`, `Random`, `Env`, `Console`, and `Store` come with an implementation for tests, one
-   for the system, and one for JavaScript hosts, plus platforms that bundle them and wrappers that change them.
+1. **It ships services.** `Clock`, `Random`, `Env`, `Console`, and `Store`, each with an implementation for tests and
+   one for the system, and JavaScript ones for `Clock`, `Random`, and `Console` (in JavaScript, `Env` is a map and
+   `Store` the application's own binding), plus platforms that bundle them and wrappers that change them.
 2. **It has a small macro layer.** `#[service]`, `#[loko::bundle]`, and `#[wraps]` let your own traits work the
    same way.
 
@@ -136,12 +137,14 @@ it was given, not by path, so it can't reach outside it. It's a foundation for W
 ## What loko does that the others don't
 
 - **Ships the services.** A test clock whose `sleep` moves time instead of waiting, seeded randomness, an environment
-  in a map, a console that records lines, and an in-memory store with conditional writes. Each has system and
-  JavaScript counterparts and the same interface. The other crates wire up implementations; none ships these.
+  in a map, a console that records lines, and an in-memory store with conditional writes. Each has a system
+  counterpart with the same interface, and the clock, randomness, and console have JavaScript ones. The other crates
+  wire up implementations; none ships these.
 - **Async without boxing.** Services return `impl Future`, and loko passes them as generics, never as `dyn`, so
   there's no `async-trait` and no heap allocation per call.
-- **No `Send`, `Sync`, or `'static` requirement.** Futures that wrap JavaScript promises aren't `Send`. The containers
-  above require `Send + Sync`; shaku requires it unless `thread_safe` is turned off.
+- **No `Send`, `Sync`, or `'static` requirement.** Futures that wrap JavaScript promises aren't `Send`. dill,
+  dependency-injector, ferrous-di, and reinhardt-di require `Send + Sync`; shaku requires it unless `thread_safe` is
+  turned off.
 - **Checked on WebAssembly.** CI builds every crate for `wasm32-unknown-unknown` and `wasm32-wasip2`, and the
   JavaScript implementations use the host's clock, timers, `crypto.getRandomValues`, and console.
 - **Wrappers that write only what they change,** with `#[wraps]`, and ready-made ones that stack.

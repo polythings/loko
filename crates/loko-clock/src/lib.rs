@@ -113,7 +113,8 @@ pub fn to_ms(time: SystemTime) -> i64 {
 }
 
 /// The time `ms` milliseconds after the Unix epoch (before it, if negative), or `None` where the
-/// platform can't hold it (WASI has no times before the epoch).
+/// platform can't hold it: WebAssembly (WASI and `wasm32-unknown-unknown`) has no times before the
+/// epoch.
 pub fn from_ms(ms: i64) -> Option<SystemTime> {
     let magnitude = Duration::from_millis(ms.unsigned_abs());
     if ms >= 0 { UNIX_EPOCH.checked_add(magnitude) } else { UNIX_EPOCH.checked_sub(magnitude) }
