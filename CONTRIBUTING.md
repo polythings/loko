@@ -42,8 +42,11 @@ we took.
   without `Send`. Implementations that hold state share it between clones (`Arc<Mutex<…>>`).
 - **Errors:** what the platform gives (`io::Result` for the console), or the crate's own `non_exhaustive` error enum
   (`loko_store::Error`). No `unwrap()` outside tests; a poisoned lock is recovered, not a panic.
-- **Targets:** JavaScript code under `#[cfg(all(feature = "js", target_arch = "wasm32", target_os = "unknown"))]`;
-  system code under `#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]`.
+- **Layout:** the trait in `lib.rs`, and each implementation in a module named for where it runs: `testing.rs`,
+  `system.rs` (native and WASI), `js.rs`, or a runtime's (`tokio_clock.rs`). Each module has its own tests.
+- **Targets:** a module that only builds on some targets is gated once, on its `mod` line and its `pub use`:
+  JavaScript code under `#[cfg(all(feature = "js", target_arch = "wasm32", target_os = "unknown"))]`, system code under
+  `#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]`.
 - **Suppressing a lint:** `#[expect(lint, reason = "...")]` with a real reason. Never `#[allow]`.
 
 ## Tests
