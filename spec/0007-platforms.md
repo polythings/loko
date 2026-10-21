@@ -16,7 +16,7 @@ issues: [3]
 
 A platform is one of each of `Clock`, `Random`, `Env`, and `Console`, ready to pass: the test resources, the
 system's, the system's under tokio, or a JavaScript host's. A program that needs more puts a platform in its own
-`#[derive(Provides)]` bundle.
+`#[loko::bundle]` bundle.
 
 ## Design
 
@@ -27,7 +27,7 @@ system's, the system's under tokio, or a JavaScript host's. A program that needs
 | `TokioPlatform` | `TokioClock` | `OsRandom` | `SystemEnv` | `StdConsole` | Native (feature `tokio`) |
 | `JsPlatform` | `JsClock` | `JsRandom` | `MapEnv` | `JsConsole` | `wasm32-unknown-unknown` (feature `js`) |
 
-- Each platform is a struct with public fields, one per resource, built with `#[derive(Provides)]`, so it is each
+- Each platform is a struct with public fields, one per resource, built with `#[loko::bundle]`, so it is each
   resource and a test can set up and inspect the parts (`platform.clock.advance(…)`, `platform.console.lines()`).
 - The structs are `non_exhaustive`, so a resource added later isn't a breaking change; they are built with `default()`
   (and `TestPlatform`'s `at_ms`, `seeded`, and `with_var`).

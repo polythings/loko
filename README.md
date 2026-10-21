@@ -143,19 +143,19 @@ async fn main() -> loko::store::Result<()> {
 
 ### 5. Bundles
 
-When code needs a store and the time together, put them in one struct with `#[derive(Provides)]`: each field marked
-`#[provides(…)]` makes the struct that resource. Generic fields let the program and its tests fill the same struct
+When code needs a store and the time together, put them in one struct with `#[loko::bundle]`: each field marked
+`#[loko::has(…)]` makes the struct that resource. Generic fields let the program and its tests fill the same struct
 differently.
 
 ```rust
 use loko::prelude::*;
 use loko::store::MemoryStore;
 
-#[derive(Provides)]
+#[loko::bundle]
 struct App<P, S> {
-    #[provides(Clock, Random, Env, Console)]
+    #[loko::has(Clock, Random, Env, Console)]
     platform: P,
-    #[provides(Store)]
+    #[loko::has(Store)]
     store: S,
 }
 
@@ -176,8 +176,8 @@ async fn main() -> loko::store::Result<()> {
 }
 ```
 
-`#[provides(Clock)]` names `HasClock` next to `Clock`, so bring both in: `loko::prelude::*` does for loko's resources,
-or write the path (`#[provides(loko::Clock)]`).
+`#[loko::has(Clock)]` names `HasClock` next to `Clock`, so bring both in: `loko::prelude::*` does for loko's resources,
+or write the path (`#[loko::has(loko::Clock)]`).
 
 ### 6. Keeping resources in a struct
 
@@ -202,11 +202,11 @@ impl<R: Store + Clock + Random> Uploader<R> {
     }
 }
 
-#[derive(Provides)]
+#[loko::bundle]
 struct Test {
-    #[provides(Clock, Random)]
+    #[loko::has(Clock, Random)]
     platform: TestPlatform,
-    #[provides(Store)]
+    #[loko::has(Store)]
     store: MemoryStore,
 }
 
@@ -225,7 +225,7 @@ async fn main() -> loko::store::Result<()> {
 
 loko's resources are ordinary traits, so you can implement one yourself: a clock on a runtime loko doesn't ship, an
 `Env` read from a config file, a `Store` over your own storage. Implement the required methods and the provided ones
-(here `now_ms`) come with it; then it goes anywhere the trait is asked for, and into bundles with `#[provides(Clock)]`.
+(here `now_ms`) come with it; then it goes anywhere the trait is asked for, and into bundles with `#[loko::has(Clock)]`.
 Step 11 makes the same clock as a wrapper around any other clock.
 
 ```rust
@@ -271,7 +271,7 @@ async fn main() {
 
 ### 8. Your own platform
 
-A platform is nothing more than a `#[derive(Provides)]` struct with a field for each resource, which is how loko's own
+A platform is nothing more than a `#[loko::bundle]` struct with a field for each resource, which is how loko's own
 are built. Make one when your program runs somewhere loko's don't fit: a clock of your own (step 7), a different
 generator, variables from a file. This one is the real system with a fixed random seed, for reproducing a run whose
 random choices led to a bug.
@@ -284,15 +284,16 @@ use loko::prelude::*;
 use loko::random::SeededRandom;
 
 /// The system's clock, environment, and console, with random numbers from a fixed seed.
-#[derive(Clone, Debug, Provides)]
+#[loko::bundle]
+#[derive(Clone, Debug)]
 pub struct ReplayPlatform {
-    #[provides(Clock)]
+    #[loko::has(Clock)]
     pub clock: StdClock,
-    #[provides(Random)]
+    #[loko::has(Random)]
     pub random: SeededRandom,
-    #[provides(Env)]
+    #[loko::has(Env)]
     pub env: SystemEnv,
-    #[provides(Console)]
+    #[loko::has(Console)]
     pub console: StdConsole,
 }
 
@@ -348,11 +349,11 @@ impl Mailer for TestMailer {
     }
 }
 
-#[derive(Provides)]
+#[loko::bundle]
 struct App<M> {
-    #[provides(Clock, Random, Env, Console)]
+    #[loko::has(Clock, Random, Env, Console)]
     platform: TestPlatform,
-    #[provides(Mailer)]
+    #[loko::has(Mailer)]
     mailer: M,
 }
 
@@ -592,7 +593,7 @@ each is for, when to use which, and what loko does differently.
 | Macro | What it does |
 |---|---|
 | `#[loko::resource]` | Makes a trait a resource: adds `HasX` and makes every `HasX` an `X` |
-| `#[derive(Provides)]` | Makes a struct each resource its `#[provides(…)]` fields provide |
+| `#[loko::bundle]` | Makes a struct each resource its `#[loko::has(…)]` fields provide |
 | `#[loko::wraps(field: Type)]` | Makes an `impl X for Wrapper` a wrapper: the methods written replace `X`'s, the rest forward |
 
 ### Crates
@@ -602,7 +603,7 @@ each is for, when to use which, and what loko does differently.
 | [`loko`](crates/loko) | Everything below, the platforms, and a prelude, with a feature per optional part |
 | [`loko-clock`](crates/loko-clock), [`loko-random`](crates/loko-random), [`loko-env`](crates/loko-env), [`loko-console`](crates/loko-console), [`loko-store`](crates/loko-store) | One resource each, with its implementations and wrappers |
 | [`loko-object-store`](crates/loko-object-store) | A `Store` over an `object_store` client: S3, GCS, Azure, local files, memory |
-| [`loko-macros`](crates/loko-macros) | `#[resource]`, `#[derive(Provides)]`, and `#[wraps]` |
+| [`loko-macros`](crates/loko-macros) | `#[resource]`, `#[loko::bundle]`, and `#[wraps]` |
 
 A library that needs one resource can depend on its crate alone.
 

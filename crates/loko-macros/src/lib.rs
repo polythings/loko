@@ -3,12 +3,12 @@
 //! - `#[resource]` on a trait `X` adds a trait `HasX` (a type that holds an `X`) and implements `X`
 //!   for every `HasX`. Each method goes through a `HasX` method (`wrapped_<method>`) that forwards
 //!   to the held resource unless the implementation says otherwise.
-//! - `#[derive(Provides)]` implements `HasX` for a struct's fields marked `#[provides(X, …)]`, so the
-//!   struct is every resource its fields provide.
+//! - `#[bundle]` on a struct implements `HasX` for its fields marked `#[loko::has(X, …)]`, so the
+//!   struct is every resource its fields hold.
 //! - `#[wraps(field: Type)]` on an `impl X for Wrapper` implements `HasX` instead: the methods
 //!   written replace the forwarding ones, and the rest forward to the field.
 //!
-//! The `HasX` traits follow RIO's "Has" type classes, and choosing a field to forward to with a derive
+//! The `HasX` traits follow RIO's "Has" type classes, and choosing a field to forward to with an attribute
 //! follows ambassador (`PRIOR_ART.md`).
 
 use proc_macro::TokenStream;
@@ -19,8 +19,8 @@ use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
 use syn::{
-    Data, DeriveInput, Error, FnArg, Ident, ImplItem, ItemImpl, ItemTrait, Member, Pat, PatIdent, Path, ReturnType,
-    Signature, Token, TraitItem, TraitItemFn, Type, TypePath, parse_macro_input, parse_quote,
+    Error, FnArg, Ident, ImplItem, ItemImpl, ItemTrait, Member, Pat, PatIdent, Path, ReturnType, Signature, Token,
+    TraitItem, TraitItemFn, Type, TypePath, parse_macro_input, parse_quote,
 };
 
 /// Makes a trait a loko resource: adds `Has<Trait>` and implements the trait for every type that
@@ -204,7 +204,7 @@ fn expand_resource(item: &ItemTrait) -> syn::Result<TokenStream2> {
     }
 
     let doc = format!(
-        "A type that holds a [`{name}`], and so is one: `#[derive(Provides)]` implements this for a field, \
+        "A type that holds a [`{name}`], and so is one: `#[loko::bundle]` implements this for a field, \
          and `#[loko::wraps]` for a wrapper that changes some methods."
     );
     let get_doc = format!("The [`{name}`] this holds.");
@@ -260,35 +260,47 @@ fn forward_fn(
     Ok((quote! { #(#cfgs)* #[doc = #doc] #[doc(hidden)] #has_method }, quote! { #(#cfgs)* #impl_method }))
 }
 
-/// Implements `Has<Resource>` for each `#[provides(Resource, …)]` on a field, so the struct is each
-/// of those resources, forwarding to the field.
-#[proc_macro_derive(Provides, attributes(provides))]
-pub fn derive_provides(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    match expand_provides(&input) {
-        Ok(tokens) => tokens.into(),
-        Err(e) => e.to_compile_error().into(),
+/// Whether `attr` is `#[loko::has(…)]` (or `#[has(…)]`, or a re-export's path ending in `has`).
+fn is_has(attr: &syn::Attribute) -> bool {
+    attr.path().segments.last().is_some_and(|s| s.ident == "has")
+}
+
+/// Makes a struct a bundle: for each field marked `#[loko::has(Resource, …)]`, implements
+/// `Has<Resource>`, so the struct is each of those resources, forwarding to the field.
+#[proc_macro_attribute]
+pub fn bundle(args: TokenStream, input: TokenStream) -> TokenStream {
+    if !args.is_empty() {
+        return Error::new(Span::call_site(), "#[bundle] takes no arguments").to_compile_error().into();
+    }
+    let mut item = parse_macro_input!(input as syn::ItemStruct);
+    match expand_bundle(&mut item) {
+        Ok(impls) => quote! { #item #impls }.into(),
+        Err(e) => {
+            let e = e.to_compile_error();
+            quote! { #item #e }.into()
+        }
     }
 }
 
-fn expand_provides(input: &DeriveInput) -> syn::Result<TokenStream2> {
-    let Data::Struct(data) = &input.data else {
-        return Err(Error::new(input.span(), "#[derive(Provides)] is for structs"));
-    };
-    let name = &input.ident;
-    let (impl_generics, ty_generics, _) = input.generics.split_for_impl();
+/// The `Has` impls of `item`'s `#[has(…)]` fields, which it removes from the struct.
+fn expand_bundle(item: &mut syn::ItemStruct) -> syn::Result<TokenStream2> {
+    let name = item.ident.clone();
+    let generics = item.generics.clone();
+    let (impl_generics, ty_generics, _) = generics.split_for_impl();
     let mut impls = vec![];
-    for (i, field) in data.fields.iter().enumerate() {
+    for (i, field) in item.fields.iter_mut().enumerate() {
         let index = syn::Index::from(i);
         let access = field.ident.as_ref().map_or_else(|| quote! { #index }, |ident| quote! { #ident });
-        let ty = &field.ty;
-        for attr in field.attrs.iter().filter(|a| a.path().is_ident("provides")) {
+        let ty = field.ty.clone();
+        let (has_attrs, others): (Vec<_>, Vec<_>) = field.attrs.drain(..).partition(is_has);
+        field.attrs = others;
+        for attr in has_attrs {
             let resources = attr.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)?;
             for resource in resources {
                 let (has, resource_name) = has_path(&resource)?;
                 let get = accessor(&resource_name);
-                // A generic field type must be the resource it provides.
-                let mut generics = input.generics.clone();
+                // A generic field type must be the resource it holds.
+                let mut generics = generics.clone();
                 generics.make_where_clause().predicates.push(parse_quote! { #ty: #resource });
                 let where_clause = &generics.where_clause;
                 impls.push(quote! {
@@ -305,9 +317,20 @@ fn expand_provides(input: &DeriveInput) -> syn::Result<TokenStream2> {
         }
     }
     if impls.is_empty() {
-        return Err(Error::new(input.span(), "no field has #[provides(…)]"));
+        return Err(Error::new(name.span(), "no field has #[loko::has(…)]"));
     }
     Ok(quote! { #(#impls)* })
+}
+
+/// Marks a field of a `#[loko::bundle]` struct with the resources it holds:
+/// `#[loko::has(Clock, Random)]`. `#[loko::bundle]` reads and removes it; anywhere else it's an
+/// error.
+#[proc_macro_attribute]
+pub fn has(_args: TokenStream, input: TokenStream) -> TokenStream {
+    let e =
+        Error::new(Span::call_site(), "#[loko::has(…)] goes on a field of a #[loko::bundle] struct").to_compile_error();
+    let input = TokenStream2::from(input);
+    quote! { #e #input }.into()
 }
 
 /// `field: Type`, the arguments of `#[wraps]`.

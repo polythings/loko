@@ -25,11 +25,11 @@ impl<C: Clock> Greeter for ClockGreeter<C> {
 }
 
 /// A bundle of a platform and the greeter, generic over the greeter.
-#[derive(Provides)]
+#[loko::bundle]
 struct App<G> {
-    #[provides(Clock, Random, Env, Console)]
+    #[loko::has(Clock, Random, Env, Console)]
     platform: TestPlatform,
-    #[provides(Greeter)]
+    #[loko::has(Greeter)]
     greeter: G,
 }
 
@@ -52,8 +52,8 @@ fn own_resources_bundle_with_loko_resources() {
 }
 
 /// Tuple structs bundle too.
-#[derive(Provides)]
-struct Pair(#[provides(Clock)] TestPlatform, #[provides(Greeter)] ClockGreeter<TestClock>);
+#[loko::bundle]
+struct Pair(#[loko::has(Clock)] TestPlatform, #[loko::has(Greeter)] ClockGreeter<TestClock>);
 
 #[test]
 fn tuple_bundles_forward() {
@@ -69,11 +69,12 @@ mod store {
 
     use super::*;
 
-    #[derive(Clone, Provides)]
+    #[loko::bundle]
+    #[derive(Clone)]
     struct Stored {
-        #[provides(Store)]
+        #[loko::has(Store)]
         store: MemoryStore,
-        #[provides(Clock)]
+        #[loko::has(Clock)]
         platform: TestPlatform,
     }
 
@@ -175,10 +176,25 @@ impl Log for Plain {
     }
 }
 
-#[derive(Provides)]
-struct Logged(#[provides(Log)] Plain);
+#[loko::bundle]
+struct Logged(#[loko::has(Log)] Plain);
 
 #[test]
 fn generic_and_cfg_gated_methods_forward() {
     assert_eq!(Logged(Plain).line(42), "log: 42");
+}
+
+/// A derive written above `#[loko::bundle]` works as well as one below it.
+#[derive(Clone, Debug)]
+#[loko::bundle]
+struct DeriveFirst {
+    #[loko::has(Clock)]
+    platform: TestPlatform,
+}
+
+#[test]
+fn derives_go_above_or_below_the_bundle() {
+    let bundle = DeriveFirst { platform: TestPlatform::new().at_ms(5) };
+    assert_eq!(bundle.clone().now_ms(), 5);
+    assert!(format!("{bundle:?}").contains("platform"));
 }

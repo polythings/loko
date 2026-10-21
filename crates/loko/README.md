@@ -26,7 +26,7 @@ assert_eq!(id(&platform), "1000-7e6f");
 | `store` | `loko::store`: the `Store` resource and `MemoryStore` |
 | `object-store` | `loko::object_store`: a `Store` over an `object_store` client |
 
-`#[loko::resource]` makes your own traits resources and `#[derive(loko::Provides)]` bundles them with loko's. The
+`#[loko::resource]` makes your own traits resources and `#[loko::bundle]` bundles them with loko's. The
 [repository](https://github.com/polythings/loko) has the details.
 
 Apache License 2.0.

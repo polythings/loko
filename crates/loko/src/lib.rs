@@ -6,7 +6,7 @@
 //! - Resources: [`clock`], [`random`], [`env`](mod@env), [`console`], and `store` (feature `store`), each a
 //!   trait with test, native, and JavaScript implementations. The traits are also at the root.
 //! - Platforms: [`TestPlatform`], `StdPlatform`, `TokioPlatform`, and `JsPlatform` bundle one of each.
-//! - [`resource`] makes a trait a resource, [`Provides`] makes a struct each resource its fields
+//! - [`resource`] makes a trait a resource, [`bundle`] makes a struct each resource its fields
 //!   provide, and [`wraps`] makes a wrapper that changes some of a resource's methods and forwards
 //!   the rest. [`prelude`] brings in the resources with the `HasClock`-style traits these name.
 //!
@@ -37,11 +37,11 @@
 //! use loko::prelude::*;
 //! use loko::store::MemoryStore;
 //!
-//! #[derive(Provides)]
+//! #[bundle]
 //! struct App {
-//!     #[provides(Store)]
+//!     #[has(Store)]
 //!     store: MemoryStore,
-//!     #[provides(Clock, Random)]
+//!     #[has(Clock, Random)]
 //!     platform: TestPlatform,
 //! }
 //!
@@ -57,7 +57,7 @@ pub use loko_console as console;
 pub use loko_console::{Console, HasConsole};
 pub use loko_env as env;
 pub use loko_env::{Env, HasEnv};
-pub use loko_macros::{Provides, resource, wraps};
+pub use loko_macros::{bundle, has, resource, wraps};
 #[cfg(feature = "object-store")]
 pub use loko_object_store as object_store;
 pub use loko_random as random;
@@ -74,7 +74,7 @@ mod platform;
 #[doc = include_str!("../../../README.md")]
 pub struct ReadmeExamples;
 
-/// The resources, the `Has` traits that `#[derive(Provides)]` and `#[wraps]` name next to them, the
+/// The resources, the `Has` traits that `#[loko::bundle]` and `#[wraps]` name next to them, the
 /// macros, and the platforms.
 pub mod prelude {
     #[cfg(all(feature = "js", all(target_arch = "wasm32", target_os = "unknown")))]
@@ -84,7 +84,7 @@ pub mod prelude {
     #[cfg(all(feature = "tokio", not(target_arch = "wasm32")))]
     pub use crate::TokioPlatform;
     pub use crate::{
-        Clock, Console, Env, HasClock, HasConsole, HasEnv, HasRandom, Provides, Random, Rng, TestPlatform, resource,
+        Clock, Console, Env, HasClock, HasConsole, HasEnv, HasRandom, Random, Rng, TestPlatform, bundle, has, resource,
         wraps,
     };
     #[cfg(feature = "store")]

@@ -1,29 +1,30 @@
 //! Platforms: one of each resource, ready to pass. A platform is each resource it holds; a program
-//! that needs more (a `Store`, its own resources) puts a platform in a `#[derive(Provides)]` struct.
+//! that needs more (a `Store`, its own resources) puts a platform in a `#[loko::bundle]` struct.
 
 use crate::clock::{Clock, TestClock};
 use crate::console::{Console, TestConsole};
 use crate::env::{Env, MapEnv};
 use crate::random::{Random, SeededRandom};
-use crate::{HasClock, HasConsole, HasEnv, HasRandom, Provides};
+use crate::{HasClock, HasConsole, HasEnv, HasRandom, bundle};
 
 /// Resources for tests: a [`TestClock`] at the Unix epoch, a [`SeededRandom`] with seed 0, an empty
 /// [`MapEnv`], and a [`TestConsole`] that records lines. Clones share the clock, the generator, and
 /// the console; the fields are public so a test can set them up and look at them.
-#[derive(Clone, Debug, Default, Provides)]
+#[bundle]
+#[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct TestPlatform {
     /// The time, moved by the test.
-    #[provides(Clock)]
+    #[has(Clock)]
     pub clock: TestClock,
     /// Random numbers, the same on every run.
-    #[provides(Random)]
+    #[has(Random)]
     pub random: SeededRandom,
     /// Environment variables set by the test.
-    #[provides(Env)]
+    #[has(Env)]
     pub env: MapEnv,
     /// The lines printed.
-    #[provides(Console)]
+    #[has(Console)]
     pub console: TestConsole,
 }
 
@@ -60,40 +61,42 @@ impl TestPlatform {
 /// [`OsRandom`](crate::random::OsRandom), [`SystemEnv`](crate::env::SystemEnv), and
 /// [`StdConsole`](crate::console::StdConsole).
 #[cfg(all(feature = "getrandom", not(all(target_arch = "wasm32", target_os = "unknown"))))]
-#[derive(Clone, Copy, Debug, Default, Provides)]
+#[bundle]
+#[derive(Clone, Copy, Debug, Default)]
 #[non_exhaustive]
 pub struct StdPlatform {
     /// The system clock.
-    #[provides(Clock)]
+    #[has(Clock)]
     pub clock: crate::clock::StdClock,
     /// The operating system's generator.
-    #[provides(Random)]
+    #[has(Random)]
     pub random: crate::random::OsRandom,
     /// The process's environment variables.
-    #[provides(Env)]
+    #[has(Env)]
     pub env: crate::env::SystemEnv,
     /// Standard output and standard error.
-    #[provides(Console)]
+    #[has(Console)]
     pub console: crate::console::StdConsole,
 }
 
 /// The system's resources under tokio (feature `tokio`, native targets): [`StdPlatform`] with
 /// [`TokioClock`](crate::clock::TokioClock), whose `sleep` is tokio's timer.
 #[cfg(all(feature = "tokio", not(target_arch = "wasm32")))]
-#[derive(Clone, Copy, Debug, Default, Provides)]
+#[bundle]
+#[derive(Clone, Copy, Debug, Default)]
 #[non_exhaustive]
 pub struct TokioPlatform {
     /// The system clock and tokio's timer.
-    #[provides(Clock)]
+    #[has(Clock)]
     pub clock: crate::clock::TokioClock,
     /// The operating system's generator.
-    #[provides(Random)]
+    #[has(Random)]
     pub random: crate::random::OsRandom,
     /// The process's environment variables.
-    #[provides(Env)]
+    #[has(Env)]
     pub env: crate::env::SystemEnv,
     /// Standard output and standard error.
-    #[provides(Console)]
+    #[has(Console)]
     pub console: crate::console::StdConsole,
 }
 
@@ -101,20 +104,21 @@ pub struct TokioPlatform {
 /// [`JsRandom`](crate::random::JsRandom), a [`MapEnv`] (JavaScript hosts have no common environment;
 /// set the variables the program reads), and [`JsConsole`](crate::console::JsConsole).
 #[cfg(all(feature = "js", all(target_arch = "wasm32", target_os = "unknown")))]
-#[derive(Clone, Debug, Default, Provides)]
+#[bundle]
+#[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct JsPlatform {
     /// `Date.now` and `setTimeout`.
-    #[provides(Clock)]
+    #[has(Clock)]
     pub clock: crate::clock::JsClock,
     /// `crypto.getRandomValues`.
-    #[provides(Random)]
+    #[has(Random)]
     pub random: crate::random::JsRandom,
     /// Variables set by the program.
-    #[provides(Env)]
+    #[has(Env)]
     pub env: MapEnv,
     /// `console.log` and `console.error`.
-    #[provides(Console)]
+    #[has(Console)]
     pub console: crate::console::JsConsole,
 }
 

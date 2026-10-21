@@ -4,7 +4,7 @@ loko does two things:
 
 1. **It ships resources.** `Clock`, `Random`, `Env`, `Console`, and `Store` come with an implementation for tests, one
    for the system, and one for JavaScript hosts, plus platforms that bundle them and wrappers that change them.
-2. **It has a small macro layer.** `#[resource]`, `#[derive(Provides)]`, and `#[wraps]` let your own traits work the
+2. **It has a small macro layer.** `#[resource]`, `#[loko::bundle]`, and `#[wraps]` let your own traits work the
    same way.
 
 Each crate below overlaps with one of those. The comparisons were checked against these versions (October 2026):
@@ -41,7 +41,7 @@ These are the closest to loko's macros.
   Forwarding is all or nothing: overriding some methods is an open request (issues #13 and #67).
 
 **What loko adds:**
-- `#[derive(Provides)]` is ambassador's idea. Credited in [PRIOR_ART.md](PRIOR_ART.md).
+- `#[loko::bundle]` is ambassador's idea. Credited in [PRIOR_ART.md](PRIOR_ART.md).
 - `#[resource]` also generates a `HasX` trait. Code can bound on it, and get the held resource with `.x()`.
 - `#[wraps]` forwards everything you don't write, without listing signatures. That combines what delegate and
   ambassador each do half of.
@@ -82,7 +82,7 @@ These build a graph of components and check at compile time that every dependenc
 
 **Use them alongside or instead** when a large application has many components that need each other at
 construction (fundle), or when a server needs per-request instances next to singletons and framework integration
-(shaku). They combine with loko: fundle can build the struct that `#[derive(Provides)]` then exposes as resources, and
+(shaku). They combine with loko: fundle can build the struct that `#[loko::bundle]` then exposes as resources, and
 a shaku component can hold a loko platform.
 
 ## Runtime containers: dill, dependency-injector, ferrous-di, and reinhardt-di

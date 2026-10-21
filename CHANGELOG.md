@@ -24,7 +24,7 @@ unrelated 0.1.0 from 2022 (task scripting), by the same owner.
   `PrefixedStore` (passes on only URIs under a prefix).
 - `loko-object-store`: a `Store` over an `object_store` client, from a client or a URL.
 - `loko-macros`: `#[resource]`, which adds a `HasX` trait to a resource trait `X` and makes every `HasX` an `X`, and
-  `#[derive(Provides)]`, which makes a struct each resource its fields provide, and `#[wraps]`, which makes a wrapper
+  `#[loko::bundle]`, which makes a struct each resource its fields provide, and `#[wraps]`, which makes a wrapper
   that replaces some of a resource's methods and forwards the rest.
 - `loko`: the resources under one crate (`loko::clock`, …, `loko::store` with feature `store`), the platforms
   `TestPlatform`, `StdPlatform`, `TokioPlatform`, and `JsPlatform`, and a prelude.

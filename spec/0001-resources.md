@@ -1,6 +1,6 @@
 ---
 number: 1
-title: Resources, Provides, and wrappers
+title: Resources, bundles, and wrappers
 status: done
 updated: 2026-10-21
 versions: [unreleased]
@@ -8,7 +8,7 @@ related: [2, 3, 4, 5, 6, 7]
 issues: [1, 2, 4, 7]
 ---
 
-# 1. Resources, Provides, and wrappers
+# 1. Resources, bundles, and wrappers
 
 **Done** · updated 2026-10-21 · versions unreleased · milestone: [0.2](milestones/v0-2.md)
 
@@ -16,7 +16,7 @@ issues: [1, 2, 4, 7]
 
 A resource is a trait for something code would otherwise reach for as a global: the time, random numbers,
 environment variables, the console, object storage. Code takes the resources it needs as `&impl Trait`, the program
-passes the system's, and tests pass ones they control. `#[resource]`, `#[derive(Provides)]`, and `#[wraps]` let
+passes the system's, and tests pass ones they control. `#[resource]`, `#[loko::bundle]`, and `#[wraps]` let
 anyone define new resources, bundle them with loko's, and wrap one implementation in another.
 
 ## Design
@@ -29,11 +29,11 @@ anyone define new resources, bundle them with loko's, and wrap one implementatio
     a hidden method `wrapped_m` for each method `m` of `X` that forwards to the held resource by default, and
   - `impl<T: HasX> X for T`, whose methods call the `wrapped_` ones, and whose associated types and constants are the
     held resource's. Provided methods forward too, so an implementation's overrides are kept.
-- **`#[derive(Provides)]`** on a struct implements `HasX` for each `#[provides(X, …)]` on a field, with the field's
+- **`#[loko::bundle]`** on a struct implements `HasX` for each `#[loko::has(X, …)]` on a field, with the field's
   type as the held resource (and `FieldType: X` as a bound, so generic fields work). Named and tuple fields both work.
   A field can provide several resources, such as a platform providing `Clock, Random`.
-- **Paths:** the derive names `HasX` next to the path given: `#[provides(loko::Clock)]` uses `loko::HasClock`, and a
-  bare `#[provides(Clock)]` needs `HasClock` in scope. `loko::prelude` brings in each resource with its `HasX`.
+- **Paths:** `#[loko::bundle]` names `HasX` next to the path given: `#[loko::has(loko::Clock)]` uses `loko::HasClock`, and a
+  bare `#[loko::has(Clock)]` needs `HasClock` in scope. `loko::prelude` brings in each resource with its `HasX`.
 - **`#[wraps(field: Type)]`** on `impl X for Wrapper` implements `HasX` instead, with `field` (a name or a tuple
   index) of type `Type` as the held resource. The methods written become the `wrapped_` methods, replacing the
   forwarding ones; `Self::Assoc` in their signatures means the held resource's. A wrapper keeps the held resource's
@@ -60,11 +60,11 @@ anyone define new resources, bundle them with loko's, and wrap one implementatio
 |---|---|---|
 | D1 | A crate per resource, re-exported by `loko`, so a library takes only the resource it needs. | Accepted |
 | D2 | Futures aren't `Send`: resources can wrap JavaScript promises; multi-threaded executors are an open question (#2). | Accepted |
-| D3 | `#[resource]` adds `HasX` and a blanket `impl<T: HasX> X for T`; the derive implements `HasX` per field attribute. A resource implemented by hand and one held in a bundle look the same to callers. | Accepted |
-| D4 | The derive names `HasX` next to the path given, and `loko::prelude` brings each resource in with its `HasX`, rather than generating macros named after the traits. | Accepted |
+| D3 | `#[resource]` adds `HasX` and a blanket `impl<T: HasX> X for T`; `#[loko::bundle]` implements `HasX` per field attribute. A resource implemented by hand and one held in a bundle look the same to callers. | Accepted |
+| D4 | `#[loko::bundle]` names `HasX` next to the path given, and `loko::prelude` brings each resource in with its `HasX`, rather than generating macros named after the traits. | Accepted |
 | D5 | The crate is `loko`, at 0.2.0: the name's owner already published an unrelated 0.1.0 in 2022. | Accepted |
 | D16 | The things passed are called resources (`#[resource]`), not services: "service" means a request handler in Rust (tower) and a server elsewhere, and a resource is what Bevy calls its shared `Time`. | Accepted |
-| D17 | The derive is `Provides`, with `#[provides(X, …)]` on fields: a field provides resources. | Accepted |
+| D17 | Bundles are declared with `#[loko::bundle]` on the struct and `#[loko::has(X, …)]` on fields: the struct-level name says what the struct is, the field-level one what each field holds. An attribute macro (not a derive) so the field attribute can be the path `loko::has` and the three macros look alike. | Accepted |
 | D18 | Wrappers implement `HasX` through `#[wraps]`, overriding hidden `wrapped_` methods, so they write only what they change. The forwarding lives in `HasX`, whose signatures resolve where the trait is defined, rather than in generated macros that would resolve them at the wrapper. | Accepted |
 
 ## Open questions and issues
@@ -77,4 +77,5 @@ anyone define new resources, bundle them with loko's, and wrap one implementatio
 ## History
 
 - 2026-10-20: built for 0.2, as services with `#[derive(Services)]`.
-- 2026-10-21: services renamed resources (D16), the derive `Provides` (D17); `#[wraps]` added (D18).
+- 2026-10-21: services renamed resources (D16); `#[derive(Services)]` became `#[loko::bundle]` with `#[loko::has]` fields (D17);
+  `#[wraps]` added (D18).

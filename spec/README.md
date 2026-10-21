@@ -33,7 +33,7 @@ loko's design. Start here, people and agents alike.
 
 | # | Spec | Status | Updated |
 |---:|---|---|---|
-| 1 | [Resources, Provides, and wrappers](0001-resources.md) | Done | 2026-10-21 |
+| 1 | [Resources, bundles, and wrappers](0001-resources.md) | Done | 2026-10-21 |
 | 2 | [Clock](0002-clock.md) | Done | 2026-10-21 |
 | 3 | [Random](0003-random.md) | Done | 2026-10-21 |
 | 4 | [Env](0004-env.md) | Done | 2026-10-20 |

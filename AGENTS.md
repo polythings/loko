@@ -1,7 +1,7 @@
 # Agent instructions
 
 loko: resources for Rust programs (`Clock`, `Random`, `Env`, `Console`, `Store`) passed to code as traits, with test,
-system, and JavaScript implementations. One crate per resource (`crates/loko-<resource>`), the derive macros
+system, and JavaScript implementations. One crate per resource (`crates/loko-<resource>`), the macros
 (`crates/loko-macros`), and the `loko` crate, which re-exports them and adds the platforms.
 
 ## Before changing code
