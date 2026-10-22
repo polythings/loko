@@ -45,4 +45,4 @@ loko's design. Start here, people and agents alike.
 
 | Milestone | Status |
 |---|---|
-| [0.2: First release](milestones/v0-2.md) | In progress |
+| [0.2: First release](milestones/v0-2.md) | Done |

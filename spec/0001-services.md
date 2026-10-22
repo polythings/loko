@@ -3,14 +3,14 @@ number: 1
 title: Services, bundles, and wrappers
 status: done
 updated: 2026-10-21
-versions: [unreleased]
+versions: [0.2.0]
 related: [2, 3, 4, 5, 6, 7]
 issues: [1, 2, 4, 7]
 ---
 
 # 1. Services, bundles, and wrappers
 
-**Done** · updated 2026-10-21 · versions unreleased · milestone: [0.2](milestones/v0-2.md)
+**Done** · updated 2026-10-21 · versions 0.2.0 · milestone: [0.2](milestones/v0-2.md)
 
 ## Summary
 
@@ -82,3 +82,4 @@ anyone define new services, bundle them with loko's, and wrap one implementation
   resources for a day, and are services again (D16);
   `#[wraps]` added (D18).
 - 2026-10-21: loko's own services written out by hand, without the macros (D19).
+- 2026-10-22: released in 0.2.0.

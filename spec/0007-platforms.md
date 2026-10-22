@@ -3,14 +3,14 @@ number: 7
 title: Platforms
 status: done
 updated: 2026-10-20
-versions: [unreleased]
+versions: [0.2.0]
 related: [1, 2, 3, 4, 5]
 issues: [3]
 ---
 
 # 7. Platforms
 
-**Done** · updated 2026-10-20 · versions unreleased · milestone: [0.2](milestones/v0-2.md)
+**Done** · updated 2026-10-20 · versions 0.2.0 · milestone: [0.2](milestones/v0-2.md)
 
 ## Summary
 
@@ -47,3 +47,4 @@ system's, the system's under tokio, or a JavaScript host's. A program that needs
 ## History
 
 - 2026-10-20: built for 0.2.
+- 2026-10-22: released in 0.2.0.
