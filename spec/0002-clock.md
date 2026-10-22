@@ -3,14 +3,14 @@ number: 2
 title: Clock
 status: done
 updated: 2026-10-21
-versions: [unreleased]
+versions: [0.2.0]
 related: [1, 7]
 issues: []
 ---
 
 # 2. Clock
 
-**Done** · updated 2026-10-21 · versions unreleased · milestone: [0.2](milestones/v0-2.md)
+**Done** · updated 2026-10-21 · versions 0.2.0 · milestone: [0.2](milestones/v0-2.md)
 
 ## Summary
 
@@ -50,3 +50,4 @@ None.
 
 - 2026-10-20: built for 0.2.
 - 2026-10-21: `OffsetClock` and `to_ms` added.
+- 2026-10-22: released in 0.2.0.

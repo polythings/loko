@@ -3,14 +3,14 @@ number: 5
 title: Console
 status: done
 updated: 2026-10-20
-versions: [unreleased]
+versions: [0.2.0]
 related: [1, 7]
 issues: []
 ---
 
 # 5. Console
 
-**Done** · updated 2026-10-20 · versions unreleased · milestone: [0.2](milestones/v0-2.md)
+**Done** · updated 2026-10-20 · versions 0.2.0 · milestone: [0.2](milestones/v0-2.md)
 
 ## Summary
 
@@ -38,3 +38,4 @@ None.
 ## History
 
 - 2026-10-20: built for 0.2.
+- 2026-10-22: released in 0.2.0.

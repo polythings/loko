@@ -3,14 +3,14 @@ number: 6
 title: Store
 status: done
 updated: 2026-10-21
-versions: [unreleased]
+versions: [0.2.0]
 related: [1]
 issues: [6]
 ---
 
 # 6. Store
 
-**Done** · updated 2026-10-21 · versions unreleased · milestone: [0.2](milestones/v0-2.md)
+**Done** · updated 2026-10-21 · versions 0.2.0 · milestone: [0.2](milestones/v0-2.md)
 
 ## Summary
 
@@ -54,3 +54,4 @@ over S3, a local directory, memory, or a JavaScript binding.
 - 2026-10-20: built for 0.2.
 - 2026-10-21: review fixes: `from_url` keeps the port, empty and past-the-end ranges read as no bytes,
   and listing starts from an offset. Wrappers `CountingStore`, `ReadOnlyStore`, and `PrefixedStore` added.
+- 2026-10-22: released in 0.2.0.

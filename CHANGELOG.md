@@ -5,6 +5,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.2.0 (2026-10-22)
+
 The first release of loko as a services library. It is version 0.2.0 because the `loko` name on crates.io carries an
 unrelated 0.1.0 from 2022 (task scripting), by the same owner.
 
